@@ -130,7 +130,6 @@
     <SignInDialog
       v-model="signInDialog"
       @signIn="_signIn"
-      @emailSignIn="_emailSignIn"
     />
 
     <!-- New event dialog -->
@@ -211,10 +210,6 @@ export default {
         // NOTE: selectAccount is not supported implemented yet for Outlook, maybe add it later
         signInOutlook({ state: null, selectAccount: true })
       }
-    },
-    _emailSignIn(user) {
-      this.setAuthUser(user)
-      this.$router.replace({ name: "home" })
     },
     signIn() {
       this.$router.push({ name: "sign-in" })

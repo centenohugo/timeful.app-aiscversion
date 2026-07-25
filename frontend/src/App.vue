@@ -6,7 +6,6 @@
     <SignInDialog
       v-model="signInDialog"
       @signIn="_signIn"
-      @emailSignIn="_emailSignIn"
     />
     <NewDialog
       v-model="newDialogOptions.show"
@@ -357,12 +356,6 @@ export default {
             selectAccount: true,
           })
         }
-      }
-    },
-    _emailSignIn(user) {
-      this.setAuthUser(user)
-      if (this.$route.name === "landing") {
-        this.$router.push({ name: "home" })
       }
     },
     setFeatureFlags() {

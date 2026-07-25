@@ -22,8 +22,6 @@ import (
 	"schej.it/server/db"
 	"schej.it/server/logger"
 	"schej.it/server/routes"
-	"schej.it/server/services/gcloud"
-	"schej.it/server/slackbot"
 	"schej.it/server/utils"
 
 	swaggerfiles "github.com/swaggo/files"
@@ -116,10 +114,6 @@ func main() {
 	closeConnection := db.Init()
 	defer closeConnection()
 
-	// Init google cloud stuff
-	closeTasks := gcloud.InitTasks()
-	defer closeTasks()
-
 	// Session
 	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
 	router.Use(sessions.Sessions("session", store))
@@ -132,7 +126,6 @@ func main() {
 	routes.InitEvents(apiRouter)
 	routes.InitAnalytics(apiRouter)
 	routes.InitFolders(apiRouter)
-	slackbot.InitSlackbot(apiRouter)
 
 	frontendDist := os.Getenv("FRONTEND_DIST")
 	if frontendDist == "" {

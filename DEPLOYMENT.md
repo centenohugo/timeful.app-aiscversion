@@ -12,8 +12,8 @@ Production deployment using Docker Compose behind a Caddy reverse proxy.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/schej-it/timeful.app
-cd timeful.app
+git clone https://github.com/centenohugo/timeful.app-aiscversion
+cd timeful.app-aiscversion
 
 # 2. Create server environment file
 cp server/.env.template server/.env
@@ -103,16 +103,8 @@ Create `server/.env` from the template (`server/.env.template`).
 | ---------------- | --------------------------------------------------------------------------- |
 | `CLIENT_ID`      | Google OAuth client ID                                                      |
 | `CLIENT_SECRET`  | Google OAuth client secret                                                  |
-| `ENCRYPTION_KEY` | Key for encrypting sensitive data (generate with `openssl rand -base64 32`) |
+| `ENCRYPTION_KEY` | Key for encrypting sensitive data — must be exactly 16/24/32 raw chars (generate with `openssl rand -hex 16`) |
 | `SESSION_SECRET` | Session cookie encryption key (generate with `openssl rand -base64 32`)     |
-
-#### Optional — Payments
-
-| Variable                | Description                        |
-| ----------------------- | ---------------------------------- |
-| `STRIPE_API_KEY`        | Stripe API key                     |
-| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret      |
-| `STRIPE_*_PRICE_ID`     | Stripe price IDs for various plans |
 
 #### Optional — Additional Calendars
 
@@ -129,14 +121,11 @@ Create `server/.env` from the template (`server/.env.template`).
 
 #### Optional — Other Services
 
-| Variable                                     | Description                                  |
-| -------------------------------------------- | -------------------------------------------- |
-| `ANALYTICS_USERNAME` / `ANALYTICS_PASSWORD`  | Basic auth for /api/analytics routes         |
-| `SERVICE_ACCOUNT_KEY_PATH`                   | Google Cloud service account for Cloud Tasks |
-| `SLACK_*_WEBHOOK_URL`                        | Slack webhooks for notifications             |
-| `GMAIL_APP_PASSWORD` / `SCHEJ_EMAIL_ADDRESS` | Gmail SMTP for sending emails                |
-| `LISTMONK_*`                                 | Listmonk email service configuration         |
-| `DISCORD_BOT_TOKEN` / `GUILD_ID`             | Discord bot integration                      |
+| Variable                                     | Description                                       |
+| -------------------------------------------- | ------------------------------------------------- |
+| `ANALYTICS_USERNAME` / `ANALYTICS_PASSWORD`  | Basic auth for /api/analytics routes              |
+| `GMAIL_APP_PASSWORD` / `SCHEJ_EMAIL_ADDRESS` | Gmail SMTP credentials (currently unused; no      |
+|                                              | notification emails are sent by this fork)        |
 
 See `server/.env.template` for the complete list.
 
