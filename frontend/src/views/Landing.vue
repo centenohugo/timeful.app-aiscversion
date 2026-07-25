@@ -19,8 +19,6 @@
             <v-btn v-else text :to="{ name: 'sign-in' }">Sign in</v-btn>
           </LandingPageHeader>
         </div>
-
-        <FormerlyKnownAs />
       </div>
 
       <div class="tw-flex tw-flex-col tw-items-center">
@@ -305,10 +303,8 @@ import { calendarTypes } from "@/constants"
 import HowItWorksDialog from "@/components/HowItWorksDialog.vue"
 import { vueVimeoPlayer } from "vue-vimeo-player"
 import Footer from "@/components/Footer.vue"
-import PronunciationMenu from "@/components/PronunciationMenu.vue"
 import { mapState, mapMutations } from "vuex"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
-import FormerlyKnownAs from "@/components/FormerlyKnownAs.vue"
 
 export default {
   name: "Landing",
@@ -331,9 +327,7 @@ export default {
     HowItWorksDialog,
     vueVimeoPlayer,
     Footer,
-    PronunciationMenu,
     AuthUserMenu,
-    FormerlyKnownAs,
   },
 
   data: () => ({
