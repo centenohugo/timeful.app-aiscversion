@@ -1,9 +1,17 @@
 <template>
-  <footer class="tw-bg-green tw-p-8 tw-text-white">
+  <footer class="aisc-footer tw-p-8 tw-text-very-dark-gray">
     <div class="tw-mx-auto tw-max-w-7xl">
       <div class="tw-mb-3 tw-flex tw-items-center">
-        <v-icon class="tw-mr-1 tw-text-white">mdi-calendar-blank</v-icon>
-        <span class="tw-text-2xl tw-font-medium">timeful</span>
+        <v-img
+          alt="Timeful Logo"
+          class="shrink"
+          contain
+          src="@/assets/aisc-logo.png"
+          transition="fade-transition"
+          width="48"
+          height="48"
+          max-width="48"
+        />
       </div>
       <router-link :to="{ name: 'privacy-policy' }" class="tw-text-sm">
         Privacy Policy
@@ -13,11 +21,22 @@
 </template>
 
 <style scoped>
+/* AISC footer gradient: near-white -> pink tint -> full brand pink (left to
+   right). All footer content is left-aligned, so it sits on the light end of
+   the gradient and stays dark-on-light / readable. */
+.aisc-footer {
+  background-image: linear-gradient(
+    to right,
+    #fafafa 0%,
+    #fce4f3 45%,
+    #eb178e 100%
+  );
+}
 a {
-  @apply tw-text-white/80 !important;
+  @apply tw-text-darkest-green !important;
 }
 a:hover {
-  @apply tw-text-white !important;
+  @apply tw-text-black !important;
 }
 </style>
 

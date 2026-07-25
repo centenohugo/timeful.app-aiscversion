@@ -57,7 +57,7 @@
           color="primary"
           class="tw-mx-2 tw-rounded-md"
           :style="{
-            boxShadow: '0px 2px 8px 0px #00994C80 !important',
+            boxShadow: '0px 2px 8px 0px #EB178E80 !important',
           }"
           @click="() => _createNew()"
         >
@@ -135,9 +135,9 @@ html {
 .v-btn.v-btn--is-elevated.primary,
 .v-btn.v-btn--is-elevated.tw-bg-green,
 .v-btn.v-btn--is-elevated.tw-bg-white.tw-text-green {
-  -webkit-box-shadow: 0px 2px 8px 0px #00994c80 !important;
-  -moz-box-shadow: 0px 2px 8px 0px #00994c80 !important;
-  box-shadow: 0px 2px 8px 0px #00994c80 !important;
+  -webkit-box-shadow: 0px 2px 8px 0px #eb178e80 !important;
+  -moz-box-shadow: 0px 2px 8px 0px #eb178e80 !important;
+  box-shadow: 0px 2px 8px 0px #eb178e80 !important;
   border: 1px solid theme("colors.light-green") !important;
 }
 

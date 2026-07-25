@@ -8,7 +8,10 @@ export default new Vuetify({
   theme: {
     themes: {
       light: {
-        primary: tailwind.theme.colors.green,
+        // `colors.green` / `colors.blue` are historical token names that now hold
+        // the AISC pink / cyan brand values — see tailwind.config.js.
+        primary: tailwind.theme.colors.green, // AISC pink #EB178E
+        secondary: tailwind.theme.colors["light-blue"], // AISC cyan #20CCF1
         error: tailwind.theme.colors.red,
       },
     },

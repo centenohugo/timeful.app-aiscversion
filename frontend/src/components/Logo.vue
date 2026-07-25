@@ -6,6 +6,7 @@
     :src="src"
     transition="fade-transition"
     :width="width"
+    :height="width"
   />
 </template>
 
@@ -16,8 +17,10 @@ export default {
   name: "Logo",
 
   props: {
+    // Kept for backwards compatibility with existing call sites. Every type now
+    // resolves to the AISC Madrid logo; only the rendered size differs.
     type: {
-      type: "timeful" | "betterwhen2meet" | "aprilfools",
+      type: String,
       default: "timeful",
     },
   },
@@ -34,23 +37,18 @@ export default {
       return "Timeful Logo"
     },
     src() {
-      switch (this.type) {
-        case "timeful":
-          return require("@/assets/timeful_logo_with_text.png")
-        case "betterwhen2meet":
-          return require("@/assets/april_fools_logo.png")
-        case "aprilfools":
-          return require("@/assets/april_fools_logo.png")
-      }
+      // The AISC logo is a roughly square mark (676x680), unlike the old wide
+      // Timeful wordmark, so widths below are much smaller.
+      return require("@/assets/aisc-logo.png")
     },
     width() {
       switch (this.type) {
-        case "timeful":
-          return this.isPhone ? 90 : 110
         case "betterwhen2meet":
-          return this.isPhone ? 200 : 300
         case "aprilfools":
-          return this.isPhone ? 200 : 300
+          return this.isPhone ? 96 : 128
+        case "timeful":
+        default:
+          return this.isPhone ? 36 : 44
       }
     },
   },
