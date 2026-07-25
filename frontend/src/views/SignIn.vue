@@ -46,23 +46,6 @@
                 <v-spacer />
               </div>
             </v-btn>
-            <v-btn
-              block
-              @click="signIn(calendarTypes.OUTLOOK)"
-              class="tw-bg-white"
-            >
-              <div class="tw-flex tw-w-full tw-items-center tw-gap-2">
-                <v-img
-                  class="tw-flex-initial"
-                  width="20"
-                  height="20"
-                  src="@/assets/outlook_logo.svg"
-                />
-                <v-spacer />
-                {{ isSignUp ? "Sign up with" : "Continue with" }} Outlook
-                <v-spacer />
-              </div>
-            </v-btn>
           </div>
           <div class="tw-text-center tw-text-xs">
             By continuing, you agree to our
@@ -99,7 +82,7 @@
 
 <script>
 import { calendarTypes } from "@/constants"
-import { signInGoogle, signInOutlook } from "@/utils"
+import { signInGoogle } from "@/utils"
 import { mapMutations } from "vuex"
 import Logo from "@/components/Logo.vue"
 
@@ -112,7 +95,9 @@ export default {
 
   metaInfo() {
     return {
-      title: this.isSignUp ? "Sign Up - Timeful" : "Sign In - Timeful",
+      title: this.isSignUp
+        ? "Sign Up - Schedule meetings"
+        : "Sign In - Schedule meetings",
     }
   },
 
@@ -130,12 +115,7 @@ export default {
   methods: {
     ...mapMutations(["setAuthUser"]),
     signIn(provider) {
-      const state = null
-      if (provider === calendarTypes.GOOGLE) {
-        signInGoogle({ state, selectAccount: true })
-      } else if (provider === calendarTypes.OUTLOOK) {
-        signInOutlook({ state, selectAccount: true })
-      }
+      signInGoogle({ state: null, selectAccount: true })
     },
   },
 }

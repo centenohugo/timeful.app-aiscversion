@@ -106,42 +106,13 @@
           >
             Cancel
           </v-btn>
-          <v-menu offset-y class="tw-z-20">
-            <template v-slot:activator="{ on, attrs }">
-              <v-btn
-                :disabled="!allowScheduleEvent"
-                class="tw-bg-blue tw-text-white"
-                v-bind="attrs"
-                v-on="on"
-              >
-                Schedule
-              </v-btn>
-            </template>
-            <v-list dense>
-              <v-list-item @click="(e) => $emit('confirmScheduleEvent', true)">
-                <v-img
-                  src="@/assets/gcal_logo.png"
-                  class="tw-mr-2 tw-flex-none"
-                  height="20"
-                  width="20"
-                />
-                <v-list-item-content>
-                  <v-list-item-title>Google Calendar</v-list-item-title>
-                </v-list-item-content>
-              </v-list-item>
-              <v-list-item @click="(e) => $emit('confirmScheduleEvent', false)">
-                <v-img
-                  src="@/assets/outlook_logo.svg"
-                  class="tw-mr-2 tw-flex-none"
-                  height="20"
-                  width="20"
-                />
-                <v-list-item-content>
-                  <v-list-item-title>Outlook</v-list-item-title>
-                </v-list-item-content>
-              </v-list-item>
-            </v-list>
-          </v-menu>
+          <v-btn
+            :disabled="!allowScheduleEvent"
+            class="tw-bg-blue tw-text-white"
+            @click="(e) => $emit('confirmScheduleEvent', true)"
+          >
+            Schedule
+          </v-btn>
         </template>
       </div>
     </div>

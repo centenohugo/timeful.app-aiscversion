@@ -180,7 +180,7 @@ export default {
   name: "Settings",
 
   metaInfo: {
-    title: "Settings - Timeful",
+    title: "Settings - Schedule meetings",
   },
 
   components: { CalendarAccounts },

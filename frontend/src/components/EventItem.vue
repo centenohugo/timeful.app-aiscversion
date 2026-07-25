@@ -244,25 +244,11 @@ export default {
     isDow() {
       return this.event.type === eventTypes.DOW
     },
-    isSignUp() {
-      return this.event.isSignUpForm
-    },
     linkTo() {
-      if (this.isGroup) {
-        return "group"
-      } else if (this.isSignUp) {
-        return "signUp"
-      }
-
-      return "event"
+      return this.isGroup ? "group" : "event"
     },
     identifier() {
-      if (this.isGroup) {
-        return "groupId"
-      } else if (this.isSignUp) {
-        return "signUpId"
-      }
-      return "eventId"
+      return this.isGroup ? "groupId" : "eventId"
     },
     typeText() {
       return this.isGroup ? "group" : "event"

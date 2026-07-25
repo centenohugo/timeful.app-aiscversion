@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Calendar body — AISC pink (primary) -->
+  <rect x="2" y="6" width="28" height="24" rx="5" fill="#EB178E" />
+  <!-- Header band — AISC cyan (secondary) -->
+  <path
+    d="M2 11a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v2H2z"
+    fill="#20CCF1"
+  />
+  <!-- Binder rings -->
+  <rect x="8" y="2" width="4" height="7" rx="2" fill="#FFFFFF" />
+  <rect x="20" y="2" width="4" height="7" rx="2" fill="#FFFFFF" />
+  <!-- Date dots -->
+  <g fill="#FFFFFF">
+    <rect x="7" y="17" width="5" height="4" rx="1.2" />
+    <rect x="14" y="17" width="5" height="4" rx="1.2" />
+    <rect x="21" y="17" width="4" height="4" rx="1.2" />
+    <rect x="7" y="23" width="5" height="4" rx="1.2" />
+    <rect x="14" y="23" width="5" height="4" rx="1.2" />
+  </g>
+</svg>

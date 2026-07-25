@@ -13,43 +13,6 @@ import (
 	"schej.it/server/utils"
 )
 
-func GetFriendRequestById(friendRequestId string) *models.FriendRequest {
-	objectId, err := primitive.ObjectIDFromHex(friendRequestId)
-	if err != nil {
-		// friendRequestId is malformatted
-		return nil
-	}
-	result := FriendRequestsCollection.FindOne(context.Background(), bson.M{
-		"_id": objectId,
-	})
-	if result.Err() == mongo.ErrNoDocuments {
-		// Friend request does not exist!
-		return nil
-	}
-
-	// Decode result
-	var friendRequest models.FriendRequest
-	if err := result.Decode(&friendRequest); err != nil {
-		logger.StdErr.Panicln(err)
-	}
-
-	return &friendRequest
-}
-
-func DeleteFriendRequestById(friendRequestId string) {
-	objectId, err := primitive.ObjectIDFromHex(friendRequestId)
-	if err != nil {
-		// friendRequestId is malformatted
-		logger.StdErr.Panicln(err)
-	}
-	_, err = FriendRequestsCollection.DeleteOne(context.Background(), bson.M{
-		"_id": objectId,
-	})
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
-}
-
 /*
 Finds a daily user log, localized to the user's month/day/year, by:
 Checking if the given date (in server time) and timezone offset (in client time) match the day of a daily user log (in UTC time)

@@ -887,11 +887,7 @@ export const processTimeBlocks = (
 }
 
 export const getCalendarAccountKey = (email, calendarType) => {
-  const trimmed = String(email ?? "").trim()
-  const keyPart =
-    calendarType === calendarTypes.ICS
-      ? trimmed
-      : trimmed.toLowerCase()
+  const keyPart = String(email ?? "").trim().toLowerCase()
   return `${keyPart}_${calendarType}`
 }
 

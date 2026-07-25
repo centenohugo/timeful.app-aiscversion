@@ -28,16 +28,7 @@ export default {
         state?.type === authTypes.ADD_CALENDAR_ACCOUNT ||
         state?.type === authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT
       ) {
-        if (state.calendarType === calendarTypes.GOOGLE) {
-          await post("/user/add-google-calendar-account", { code, scope })
-        } else if (state.calendarType === calendarTypes.OUTLOOK) {
-          await post("/user/add-outlook-calendar-account", {
-            code,
-            scope: state.scope,
-          })
-        } else {
-          throw new Error("Invalid calendar type")
-        }
+        await post("/user/add-google-calendar-account", { code, scope })
       } else {
         const user = await post("/auth/sign-in", {
           code,
@@ -66,12 +57,6 @@ export default {
             this.$router.replace({
               name: "event",
               params: { eventId: state.eventId },
-            })
-            break
-          case authTypes.EVENT_SIGN_IN_LINK_APPLE:
-            this.$router.replace({
-              name: "event",
-              params: { eventId: state.eventId, linkApple: true },
             })
             break
           case authTypes.GROUP_CREATE:

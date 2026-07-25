@@ -22,23 +22,6 @@
               <v-spacer />
             </div>
           </v-btn>
-          <v-btn
-            block
-            @click="signIn(calendarTypes.OUTLOOK)"
-            class="tw-bg-white"
-          >
-            <div class="tw-flex tw-w-full tw-items-center tw-gap-2">
-              <v-img
-                class="tw-flex-initial"
-                width="20"
-                height="20"
-                src="@/assets/outlook_logo.svg"
-              />
-              <v-spacer />
-              Continue with Outlook
-              <v-spacer />
-            </div>
-          </v-btn>
         </div>
         <div class="tw-text-center tw-text-xs">
           By continuing, you agree to our

@@ -4,17 +4,10 @@
       <!-- Mark availability option dialog -->
       <MarkAvailabilityDialog
         v-model="choiceDialog"
-        :initialState="linkApple ? 'create_account_apple' : 'choices'"
-        @signInLinkApple="signInLinkApple"
         @allowGoogleCalendar="
           () => setAvailabilityAutomatically(calendarTypes.GOOGLE)
         "
-        @allowOutlookCalendar="
-          () => setAvailabilityAutomatically(calendarTypes.OUTLOOK)
-        "
         @setAvailabilityManually="setAvailabilityManually"
-        @addedAppleCalendar="addedAppleCalendar"
-        @addedICSCalendar="addedICSCalendar"
       />
 
       <!-- Google sign in not supported dialog -->
@@ -46,16 +39,6 @@
         edit
         no-tabs
       />
-
-      <!-- Group invitation dialog -->
-      <InvitationDialog
-        v-if="isGroup"
-        v-model="invitationDialog"
-        :group="event"
-        :calendarPermissionGranted="calendarPermissionGranted"
-        @refreshEvent="refreshEvent"
-        @setAvailabilityAutomatically="setAvailabilityAutomatically"
-      ></InvitationDialog>
 
       <!-- Pages Not Visited dialog -->
       <v-dialog
@@ -306,35 +289,10 @@
         </div>
       </div>
 
-      <template v-if="showFeedbackBtn">
+      <template v-if="isPhone">
         <div class="tw-w-full tw-border-t tw-border-solid tw-border-gray"></div>
 
-        <div class="tw-flex tw-flex-col tw-items-center" v-if="showFeedbackBtn">
-          <v-btn
-            class="tw-h-16"
-            block
-            id="feedback-btn"
-            text
-            href="https://forms.gle/A96i4TTWeKgH3P1W6"
-            target="_blank"
-          >
-            Give feedback to Timeful team
-          </v-btn>
-          <!-- <div
-            class="tw-w-full tw-border-t tw-border-solid tw-border-gray"
-          ></div> -->
-          <!-- <v-btn
-            class="tw-h-16"
-            block
-            text
-            href="https://www.paypal.com/donate/?hosted_button_id=KWCH6LGJCP6E6"
-            target="_blank"
-          >
-            Donate
-          </v-btn> -->
-          <div
-            class="tw-w-full tw-border-t tw-border-solid tw-border-gray"
-          ></div>
+        <div class="tw-flex tw-flex-col tw-items-center">
           <v-btn class="tw-h-16" block text :to="{ name: 'privacy-policy' }">
             Privacy Policy
           </v-btn>
@@ -427,7 +385,6 @@ import {
   get,
   post,
   signInGoogle,
-  signInOutlook,
   isPhone,
   processEvent,
   getCalendarEventsMap,
@@ -473,7 +430,6 @@ import {
 import isWebview from "is-ua-webview"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
 import MarkAvailabilityDialog from "@/components/calendar_permission_dialogs/MarkAvailabilityDialog.vue"
-import InvitationDialog from "@/components/groups/InvitationDialog.vue"
 import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 export default {
@@ -483,7 +439,6 @@ export default {
     eventId: { type: String, required: true },
     fromSignIn: { type: Boolean, default: false },
     editingMode: { type: Boolean, default: false },
-    linkApple: { type: Boolean, default: false },
     initialTimezone: { type: Object, default: () => ({}) },
     contactsPayload: { type: Object, default: () => ({}) },
   },
@@ -495,7 +450,6 @@ export default {
     NewDialog,
     SignInNotSupportedDialog,
     MarkAvailabilityDialog,
-    InvitationDialog,
     HelpDialog,
     EventDescription,
   },
@@ -508,7 +462,6 @@ export default {
     guestDialog: false,
     signUpForSlotDialog: false,
     editEventDialog: false,
-    invitationDialog: false,
     pagesNotVisitedDialog: false,
     pagesNotVisitedUnderstood: false,
     helpDialog: false,
@@ -541,10 +494,6 @@ export default {
   mounted() {
     // If coming from enabling contacts, show the dialog. Checks if contactsPayload is not an Observer.
     this.editEventDialog = Object.keys(this.contactsPayload).length > 0
-    // If coming from signing in to link apple calendar, show the mark availability dialog
-    if (this.linkApple) {
-      this.choiceDialog = true
-    }
   },
 
   computed: {
@@ -597,9 +546,6 @@ export default {
     },
     selectedGuestRespondent() {
       return this.scheduleOverlapComponent?.selectedGuestRespondent
-    },
-    showFeedbackBtn() {
-      return this.isPhone
     },
     numResponses() {
       return this.scheduleOverlapComponent?.respondents.length
@@ -765,11 +711,7 @@ export default {
           }
         }
 
-        if (calendarType === calendarTypes.GOOGLE) {
-          signInGoogle(signInParams)
-        } else if (calendarType === calendarTypes.OUTLOOK) {
-          signInOutlook(signInParams)
-        }
+        signInGoogle(signInParams)
       }
       this.choiceDialog = false
     },
@@ -880,33 +822,6 @@ export default {
       }, 100)
     },
 
-    /** Sign in with google to link apple calendar */
-    signInLinkApple() {
-      if (isWebview(navigator.userAgent)) {
-        // Show dialog prompting user to use a real browser
-        this.webviewDialog = true
-      } else {
-        signInGoogle({
-          state: {
-            type: authTypes.EVENT_SIGN_IN_LINK_APPLE,
-            eventId: this.eventId,
-          },
-          selectAccount: true,
-        })
-      }
-    },
-    /** Called when user adds apple calendar account */
-    addedAppleCalendar() {
-      this.choiceDialog = false
-      this.scheduleOverlapComponent?.startEditing()
-      this.scheduleOverlapComponent?.setAvailabilityAutomatically()
-    },
-    /** Called when user adds ICS calendar account */
-    addedICSCalendar() {
-      this.choiceDialog = false
-      this.scheduleOverlapComponent?.startEditing()
-      this.scheduleOverlapComponent?.setAvailabilityAutomatically()
-    },
 
     /** Refresh calendar availabilities of everybody in the group */
     async fetchCalendarAvailabilities() {
@@ -1809,7 +1724,7 @@ export default {
         this.$nextTick(() => {
           this.scheduleOverlapComponent = this.$refs.scheduleOverlap
         })
-        document.title = `${this.event.name} - Timeful`
+        document.title = `${this.event.name} - Schedule meetings`
       }
     },
     scheduleOverlapComponent() {
@@ -1819,10 +1734,6 @@ export default {
         // Put into editing mode if just signed in
         if ((this.fromSignIn || this.editingMode) && !this.isGroup) {
           this.scheduleOverlapComponent.startEditing()
-        }
-
-        if (this.isGroup && !this.userHasResponded) {
-          this.invitationDialog = true
         }
       }
     },
