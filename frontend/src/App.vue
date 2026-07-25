@@ -35,15 +35,6 @@
         >
           Create an event
         </v-btn>
-        <v-btn
-          v-if="showFeedbackBtn"
-          id="feedback-btn"
-          text
-          href="https://forms.gle/A96i4TTWeKgH3P1W6"
-          target="_blank"
-        >
-          Give feedback
-        </v-btn>
         <!-- <v-btn
           v-if="!isPhone"
           text
@@ -274,12 +265,8 @@ export default {
         this.$route.name !== "landing" &&
         this.$route.name !== "auth" &&
         this.$route.name !== "sign-in" &&
-        this.$route.name !== "sign-up" &&
-        this.$route.name !== "privacy-policy"
+        this.$route.name !== "sign-up"
       )
-    },
-    showFeedbackBtn() {
-      return !this.isPhone || this.$route.name === "home"
     },
     routerViewClass() {
       let c = ""
@@ -297,7 +284,6 @@ export default {
   methods: {
     ...mapMutations([
       "setAuthUser",
-      "setSignUpFormEnabled",
       "setFeatureFlagsLoaded",
     ]),
     ...mapActions([
@@ -313,8 +299,7 @@ export default {
     signIn() {
       if (
         this.$route.name === "event" ||
-        this.$route.name === "group" ||
-        this.$route.name === "signUp"
+        this.$route.name === "group"
       ) {
         if (isWebview(navigator.userAgent)) {
           this.webviewDialog = true
@@ -329,8 +314,7 @@ export default {
     _signIn(calendarType) {
       if (
         this.$route.name === "event" ||
-        this.$route.name === "group" ||
-        this.$route.name === "signUp"
+        this.$route.name === "group"
       ) {
         let state
         if (this.$route.name === "event") {
