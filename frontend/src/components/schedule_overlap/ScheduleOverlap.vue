@@ -806,19 +806,6 @@
                 </div>
               </div>
               <template v-else>
-                <PubliftAd
-                  :showAd="showAds"
-                  fuseId="meet_incontent"
-                  class="-tw-mx-4 tw-my-4 tw-block !tw-rounded-none sm:tw-hidden"
-                >
-                  <div class="tw-h-[375px] publift-m:tw-h-[90px]">
-                    <div
-                      id="meet_incontent"
-                      data-fuse="meet_incontent"
-                      class="tw-flex tw-items-center tw-justify-center"
-                    ></div>
-                  </div>
-                </PubliftAd>
                 <RespondentsList
                   ref="respondentsList"
                   :event="event"
@@ -888,7 +875,7 @@
         <div
           v-if="isPhone && !calendarOnly"
           class="tw-fixed tw-z-20 tw-w-full"
-          :style="{ bottom: showAds ? 'calc(4rem + 115px)' : '4rem' }"
+          :style="{ bottom: '4rem' }"
         >
           <!-- Hint text (mobile) -->
           <v-expand-transition>
@@ -1045,7 +1032,6 @@ import {
   getScheduleTimezoneOffset,
   getTimezoneReferenceDateForEvent,
   timeNumToTimeString,
-  isPremiumUser,
   prefersStartOnMonday,
 } from "@/utils"
 import {
@@ -1055,13 +1041,10 @@ import {
   guestUserId,
   timeTypes,
   timeslotDurations,
-  upgradeDialogTypes,
 } from "@/constants"
-import { mapMutations, mapActions, mapState, mapGetters } from "vuex"
+import { mapMutations, mapActions, mapState } from "vuex"
 import UserAvatarContent from "@/components/UserAvatarContent.vue"
 import CalendarAccounts from "@/components/settings/CalendarAccounts.vue"
-import Advertisement from "@/components/event/Advertisement.vue"
-import PubliftAd from "@/components/event/PubliftAd.vue"
 import SignUpBlock from "@/components/sign_up_form/SignUpBlock.vue"
 import SignUpCalendarBlock from "@/components/sign_up_form/SignUpCalendarBlock.vue"
 import SignUpBlocksList from "@/components/sign_up_form/SignUpBlocksList.vue"
@@ -1091,7 +1074,6 @@ export default {
   name: "ScheduleOverlap",
   props: {
     event: { type: Object, required: true },
-    ownerIsPremium: { type: Boolean, default: false },
     fromEditEvent: { type: Boolean, default: false },
 
     loadingCalendarEvents: { type: Boolean, default: false }, // Whether we are currently loading the calendar events
@@ -1248,14 +1230,6 @@ export default {
   },
   computed: {
     ...mapState(["authUser", "overlayAvailabilitiesEnabled"]),
-    ...mapGetters(["isPremiumUser"]),
-    showAds() {
-      return (
-        !this.ownerIsPremium &&
-        !this.isPremiumUser &&
-        this.state !== this.states.SET_SPECIFIC_TIMES
-      )
-    },
     /** Returns the width of the right side of the calendar */
     rightSideWidth() {
       if (this.isPhone) return "100%"
@@ -2291,7 +2265,7 @@ export default {
   },
   methods: {
     ...mapMutations(["setAuthUser"]),
-    ...mapActions(["showInfo", "showError", "showUpgradeDialog"]),
+    ...mapActions(["showInfo", "showError"]),
 
     // -----------------------------------
     //#region Date
@@ -2882,33 +2856,11 @@ export default {
       const addedIfNeededTimes = this.ifNeededArray.length > 0
       if (this.authUser) {
         if (this.authUser._id in this.parsedResponses) {
-          this.$posthog?.capture(`Edited ${type}`, {
-            eventId: this.event._id,
-            addedIfNeededTimes,
-          })
         } else {
-          this.$posthog?.capture(`Added ${type}`, {
-            eventId: this.event._id,
-            addedIfNeededTimes,
-            // bufferTime: this.bufferTime,
-            bufferTime: this.bufferTime.time,
-            bufferTimeActive: this.bufferTime.enabled,
-            workingHoursEnabled: this.workingHours.enabled,
-            workingHoursStartTime: this.workingHours.startTime,
-            workingHoursEndTime: this.workingHours.endTime,
-          })
         }
       } else {
         if (guestPayload.name in this.parsedResponses) {
-          this.$posthog?.capture(`Edited ${type} as guest`, {
-            eventId: this.event._id,
-            addedIfNeededTimes,
-          })
         } else {
-          this.$posthog?.capture(`Added ${type} as guest`, {
-            eventId: this.event._id,
-            addedIfNeededTimes,
-          })
         }
       }
 
@@ -2968,17 +2920,10 @@ export default {
         payload.guest = false
         payload.userId = this.authUser._id
 
-        this.$posthog?.capture("Deleted availability", {
-          eventId: this.event._id,
-        })
       } else {
         payload.guest = true
         payload.name = name
 
-        this.$posthog?.capture("Deleted availability as guest", {
-          eventId: this.event._id,
-          name,
-        })
       }
       await _delete(`/events/${this.event._id}/response`, payload)
       this.availability = new Set()
@@ -3557,7 +3502,6 @@ export default {
     // -----------------------------------
     scheduleEvent() {
       this.state = this.states.SCHEDULE_EVENT
-      this.$posthog.capture("schedule_event_button_clicked")
     },
     cancelScheduleEvent() {
       this.state = this.defaultState
@@ -3566,17 +3510,7 @@ export default {
     /** Redirect user to Google Calendar to finish the creation of the event */
     confirmScheduleEvent(googleCalendar = true) {
       if (!this.curScheduledEvent) return
-      // if (!isPremiumUser(this.authUser)) {
-      //   this.showUpgradeDialog({
-      //     type: upgradeDialogTypes.SCHEDULE_EVENT,
-      //     data: {
-      //       scheduledEvent: this.curScheduledEvent,
-      //     },
-      //   })
-      //   return
-      // }
 
-      this.$posthog.capture("schedule_event_confirmed")
       // Get start date, and end date from the area that the user has dragged out
       const { col, row, numRows } = this.curScheduledEvent
       let startDate = this.getDateFromRowCol(row, col)
@@ -4009,9 +3943,6 @@ export default {
     },
     updateOverlayAvailability(val) {
       this.overlayAvailability = !!val
-      this.$posthog.capture("overlay_availability_toggled", {
-        enabled: !!val,
-      })
     },
     //#endregion
 
@@ -4647,8 +4578,6 @@ export default {
     ToolRow,
     CalendarAccounts,
     RespondentsList,
-    Advertisement,
-    PubliftAd,
     GCalWeekSelector,
     WorkingHoursToggle,
     SignUpBlock,

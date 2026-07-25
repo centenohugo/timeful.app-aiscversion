@@ -19,12 +19,9 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"github.com/stripe/stripe-go/v82"
 	"schej.it/server/db"
 	"schej.it/server/logger"
 	"schej.it/server/routes"
-	"schej.it/server/services/gcloud"
-	"schej.it/server/slackbot"
 	"schej.it/server/utils"
 
 	swaggerfiles "github.com/swaggo/files"
@@ -117,10 +114,6 @@ func main() {
 	closeConnection := db.Init()
 	defer closeConnection()
 
-	// Init google cloud stuff
-	closeTasks := gcloud.InitTasks()
-	defer closeTasks()
-
 	// Session
 	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
 	router.Use(sessions.Sessions("session", store))
@@ -132,9 +125,7 @@ func main() {
 	routes.InitUsers(apiRouter)
 	routes.InitEvents(apiRouter)
 	routes.InitAnalytics(apiRouter)
-	routes.InitStripe(apiRouter)
 	routes.InitFolders(apiRouter)
-	slackbot.InitSlackbot(apiRouter)
 
 	frontendDist := os.Getenv("FRONTEND_DIST")
 	if frontendDist == "" {
@@ -189,8 +180,6 @@ func loadDotEnv() {
 		logger.StdOut.Println("No .env file found, using environment variables")
 	}
 
-	// Load stripe key
-	stripe.Key = os.Getenv("STRIPE_API_KEY")
 
 	// Validate session secret
 	validateSessionSecret()

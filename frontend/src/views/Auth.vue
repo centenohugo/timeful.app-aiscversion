@@ -50,11 +50,6 @@ export default {
 
         this.setAuthUser(user)
 
-        this.$posthog?.identify(user._id, {
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        })
       }
 
       // Redirect to the correct place based on "state", otherwise, just redirect to home
@@ -133,21 +128,6 @@ export default {
                   contactsPayload: state.payload,
                 },
               })
-            }
-            break
-          case authTypes.UPGRADE:
-            try {
-              const params = JSON.parse(state.upgradeParams)
-              const res = await post("/stripe/create-checkout-session", {
-                priceId: params.priceId,
-                userId: this.authUser._id,
-                isSubscription: params.isSubscription,
-                originUrl: params.originUrl,
-              })
-              window.location.href = res.url
-            } catch (e) {
-              console.error(e)
-              this.$router.replace({ name: "home" })
             }
             break
           default:

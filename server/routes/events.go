@@ -23,8 +23,6 @@ import (
 	"schej.it/server/models"
 	"schej.it/server/responses"
 	"schej.it/server/services/calendar"
-	"schej.it/server/services/gcloud"
-	"schej.it/server/services/listmonk"
 	"schej.it/server/utils"
 )
 
@@ -40,7 +38,6 @@ func InitEvents(router *gin.RouterGroup) {
 	eventRouter.POST("/:eventId/response", updateEventResponse)
 	eventRouter.DELETE("/:eventId/response", deleteEventResponse)
 	eventRouter.POST("/:eventId/rename-user", renameUser)
-	eventRouter.POST("/:eventId/responded", userResponded)
 	eventRouter.POST("/:eventId/decline", middleware.AuthRequired(), declineInvite)
 	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthRequired(), getCalendarAvailabilities)
 	eventRouter.DELETE("/:eventId", middleware.AuthRequired(), deleteEvent)
@@ -141,30 +138,6 @@ func createEvent(c *gin.Context) {
 	shortId := db.GenerateShortEventId(event.Id)
 	event.ShortId = &shortId
 
-	// Schedule reminder emails if remindees array is not empty
-	if len(payload.Remindees) > 0 {
-		// Determine owner name
-		var ownerName string
-		if signedIn {
-			ownerName = user.FirstName
-		} else {
-			ownerName = "Somebody"
-		}
-
-		// Schedule email reminders for each of the remindees' emails
-		remindees := make([]models.Remindee, 0)
-		for _, email := range payload.Remindees {
-			taskIds := gcloud.CreateEmailTask(email, ownerName, payload.Name, event.GetId())
-			remindees = append(remindees, models.Remindee{
-				Email:     email,
-				TaskIds:   taskIds,
-				Responded: utils.FalsePtr(),
-			})
-		}
-
-		event.Remindees = &remindees
-	}
-
 	attendees := make([]models.Attendee, 0)
 	if payload.Type == models.GROUP {
 
@@ -191,27 +164,9 @@ func createEvent(c *gin.Context) {
 			attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr(), EventId: event.Id})
 		}
 
-		// Add attendees and send email
-		if len(payload.Attendees) > 0 {
-			// Determine owner name
-			var ownerName string
-			if signedIn {
-				ownerName = user.FirstName
-			} else {
-				ownerName = "Somebody"
-			}
-
-			// Add attendees to attendees array and send invite emails
-			availabilityGroupInviteEmailId := 9
-			for _, email := range payload.Attendees {
-				listmonk.SendEmailAddSubscriberIfNotExist(email, availabilityGroupInviteEmailId, bson.M{
-					"ownerName": ownerName,
-					"groupName": event.Name,
-					"groupUrl":  fmt.Sprintf("%s/g/%s", utils.GetBaseUrl(), event.GetId()),
-				}, false)
-				attendees = append(attendees, models.Attendee{Email: email, Declined: utils.FalsePtr(), EventId: event.Id})
-			}
-
+		// Add attendees
+		for _, email := range payload.Attendees {
+			attendees = append(attendees, models.Attendee{Email: email, Declined: utils.FalsePtr(), EventId: event.Id})
 		}
 
 		for _, attendee := range attendees {
@@ -323,58 +278,15 @@ func editEvent(c *gin.Context) {
 	event.CollectEmails = payload.CollectEmails
 	event.Type = payload.Type
 
-	// Update remindees
-	if event.Type == models.DOW || event.Type == models.SPECIFIC_DATES {
-		origRemindees := utils.Coalesce(event.Remindees)
-		updatedRemindees := make([]models.Remindee, 0)
-		added, removed, kept := utils.FindAddedRemovedKept(payload.Remindees, utils.Map(origRemindees, func(r models.Remindee) string { return r.Email }))
-
-		// Determine owner name
-		var ownerName string
-		if event.OwnerId == primitive.NilObjectID {
-			ownerName = "Somebody"
-		} else {
-			owner := db.GetUserById(event.OwnerId.Hex())
-			ownerName = owner.FirstName
-		}
-
-		for _, keptEmail := range kept {
-			updatedRemindees = append(updatedRemindees, origRemindees[keptEmail.Index])
-		}
-
-		for _, addedEmail := range added {
-			// Schedule email tasks
-			taskIds := gcloud.CreateEmailTask(addedEmail.Value, ownerName, event.Name, event.GetId())
-			updatedRemindees = append(updatedRemindees, models.Remindee{
-				Email:     addedEmail.Value,
-				TaskIds:   taskIds,
-				Responded: utils.FalsePtr(),
-			})
-		}
-
-		for _, removedEmail := range removed {
-			// Delete email tasks
-			for _, taskId := range origRemindees[removedEmail.Index].TaskIds {
-				gcloud.DeleteEmailTask(taskId)
-			}
-		}
-
-		event.Remindees = &updatedRemindees
-	}
-
 	// Update attendees
 	if event.Type == models.GROUP {
 		origAttendees := db.GetAttendees(event.Id.Hex())
-		added, removed, kept := utils.FindAddedRemovedKept(payload.Attendees, utils.Map(origAttendees, func(a models.Attendee) string { return a.Email }))
+		added, removed, _ := utils.FindAddedRemovedKept(payload.Attendees, utils.Map(origAttendees, func(a models.Attendee) string { return a.Email }))
 
-		// Determine owner name
-		var ownerName string
+		// Look up the owner so their response is never removed from the group
 		var owner *models.User
 		if event.OwnerId != primitive.NilObjectID {
 			owner = db.GetUserById(event.OwnerId.Hex())
-			ownerName = owner.FirstName
-		} else {
-			ownerName = "Somebody"
 		}
 
 		if len(removed) > 0 {
@@ -408,33 +320,11 @@ func editEvent(c *gin.Context) {
 		}
 
 		for _, addedEmail := range added {
-			// Send invite email
-			availabilityGroupInviteEmailId := 9
-			listmonk.SendEmailAddSubscriberIfNotExist(addedEmail.Value, availabilityGroupInviteEmailId, bson.M{
-				"ownerName": ownerName,
-				"groupName": event.Name,
-				"groupUrl":  fmt.Sprintf("%s/g/%s", utils.GetBaseUrl(), event.GetId()),
-			}, false)
 			db.AttendeesCollection.InsertOne(context.Background(), models.Attendee{
 				Email:    addedEmail.Value,
 				Declined: utils.FalsePtr(),
 				EventId:  event.Id,
 			})
-		}
-
-		// Send group update emails
-		if len(added) > 0 {
-			emails := utils.Map(added, func(a utils.ElementWithIndex[string]) string { return a.Value })
-			addedAttendeeEmailId := 11
-
-			for _, keptEmail := range kept {
-				listmonk.SendEmailAddSubscriberIfNotExist(keptEmail.Value, addedAttendeeEmailId, bson.M{
-					"ownerName": ownerName,
-					"groupName": event.Name,
-					"groupUrl":  fmt.Sprintf("%s/g/%s", utils.GetBaseUrl(), event.GetId()),
-					"emails":    emails,
-				}, false)
-			}
 		}
 	}
 
@@ -979,80 +869,6 @@ func updateEventResponse(c *gin.Context) {
 		event.SignUpResponses[userIdString] = &response
 	}
 
-	// Send notification emails
-	if (utils.Coalesce(event.NotificationsEnabled) || event.Type == models.GROUP) && !userHasResponded && userIdString != event.OwnerId.Hex() {
-		// Send email asynchronously
-		go func() {
-			// Recover from panics
-			defer func() {
-				if err := recover(); err != nil {
-					logger.StdErr.Println(err)
-				}
-			}()
-
-			creator := db.GetUserById(event.OwnerId.Hex())
-			if creator == nil {
-				return
-			}
-
-			var respondentName string
-			if *payload.Guest {
-				respondentName = payload.Name
-			} else {
-				respondent := db.GetUserById(userIdString)
-				respondentName = fmt.Sprintf("%s %s", respondent.FirstName, respondent.LastName)
-			}
-
-			if event.Type == models.GROUP {
-				someoneRespondedEmailId := 13
-				listmonk.SendEmail(creator.Email, someoneRespondedEmailId, bson.M{
-					"groupName":      event.Name,
-					"ownerName":      creator.FirstName,
-					"respondentName": respondentName,
-					"groupUrl":       fmt.Sprintf("%s/g/%s", utils.GetBaseUrl(), event.GetId()),
-				})
-			} else {
-				someoneRespondedEmailId := 10
-				listmonk.SendEmail(creator.Email, someoneRespondedEmailId, bson.M{
-					"eventName":      event.Name,
-					"ownerName":      creator.FirstName,
-					"respondentName": respondentName,
-					"eventUrl":       fmt.Sprintf("%s/e/%s", utils.GetBaseUrl(), event.GetId()),
-				})
-			}
-		}()
-	}
-
-	// Send email after X responses
-	sendEmailAfterXResponses := utils.Coalesce(event.SendEmailAfterXResponses)
-	if sendEmailAfterXResponses > 0 && !userHasResponded && sendEmailAfterXResponses == len(eventResponses)+1 { // We add 1 because eventResponses is the old event responses before the current user is added
-		// Set SendEmailAfterXResponses variable to -1 to prevent additional emails from being sent
-		*event.SendEmailAfterXResponses = -1
-
-		// Send email asynchronously
-		go func() {
-			// Recover from panics
-			defer func() {
-				if err := recover(); err != nil {
-					logger.StdErr.Println(err)
-				}
-			}()
-
-			creator := db.GetUserById(event.OwnerId.Hex())
-			if creator == nil {
-				return
-			}
-
-			sendEmailAfterXResponsesEmailId := 14
-			listmonk.SendEmail(creator.Email, sendEmailAfterXResponsesEmailId, bson.M{
-				"eventName":    event.Name,
-				"ownerName":    creator.FirstName,
-				"eventUrl":     fmt.Sprintf("%s/e/%s", utils.GetBaseUrl(), event.GetId()),
-				"numResponses": len(eventResponses) + 1, // We add 1 because eventResponses is the old event responses before the current user is added
-			})
-		}()
-	}
-
 	// Update event in mongodb
 	_, err := db.EventsCollection.UpdateByID(
 		context.Background(),
@@ -1203,86 +1019,6 @@ func renameUser(c *gin.Context) {
 
 	// Check if old name is a guest response
 	db.UpdateGuestResponseName(event.Id.Hex(), payload.OldName, payload.NewName)
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
-// @Summary Mark the user as having responded to this event
-// @Tags events
-// @Accept json
-// @Produce json
-// @Param eventId path string true "Event ID"
-// @Param payload body object{email=string} true "Object containing the user's email"
-// @Success 200
-// @Router /events/{eventId}/responded [post]
-func userResponded(c *gin.Context) {
-	payload := struct {
-		Email string `json:"email" binding:"required"`
-	}{}
-	if err := c.Bind(&payload); err != nil {
-		return
-	}
-
-	// Fetch event
-	eventId := c.Param("eventId")
-	event := db.GetEventByEitherId(eventId)
-	if event == nil {
-		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
-		return
-	}
-
-	// Update responded boolean for the given email
-	if event.Remindees == nil {
-		c.JSON(http.StatusNotFound, responses.Error{Error: errs.RemindeeEmailNotFound})
-		return
-	}
-	index := utils.Find(*event.Remindees, func(r models.Remindee) bool {
-		return r.Email == payload.Email
-	})
-	if index == -1 {
-		c.JSON(http.StatusNotFound, responses.Error{Error: errs.RemindeeEmailNotFound})
-		return
-	}
-	if *(*event.Remindees)[index].Responded {
-		// If remindee has already responded, just return and don't update db
-		c.JSON(http.StatusOK, gin.H{})
-		return
-	}
-	(*event.Remindees)[index].Responded = utils.TruePtr()
-
-	// Delete the reminder email tasks
-	for _, taskId := range (*event.Remindees)[index].TaskIds {
-		gcloud.DeleteEmailTask(taskId)
-	}
-
-	// Update event in database
-	db.EventsCollection.UpdateByID(context.Background(), event.Id, bson.M{
-		"$set": event,
-	})
-
-	// Email owner of event if all remindees have responded
-	everyoneResponded := true
-	for _, remindee := range *event.Remindees {
-		if !*remindee.Responded {
-			everyoneResponded = false
-			break
-		}
-	}
-	if everyoneResponded {
-		// Get owner
-		owner := db.GetUserById(event.OwnerId.Hex())
-
-		// Get event url
-		baseUrl := utils.GetBaseUrl()
-		eventUrl := fmt.Sprintf("%s/e/%s", baseUrl, eventId)
-
-		// Send email
-		everyoneRespondedEmailTemplateId := 8
-		listmonk.SendEmail(owner.Email, everyoneRespondedEmailTemplateId, bson.M{
-			"eventName": event.Name,
-			"eventUrl":  eventUrl,
-		})
-	}
 
 	c.JSON(http.StatusOK, gin.H{})
 }
@@ -1526,16 +1262,6 @@ func deleteEvent(c *gin.Context) {
 		})
 		if err != nil {
 			logger.StdErr.Panicln(err)
-		}
-	}
-
-	// Delete gcloud tasks
-	if event.Remindees != nil {
-		for _, remindee := range *event.Remindees {
-			// Delete email tasks
-			for _, taskId := range remindee.TaskIds {
-				gcloud.DeleteEmailTask(taskId)
-			}
 		}
 	}
 
@@ -1899,7 +1625,6 @@ func stripSensitiveUserFields(user *models.User) {
 	}
 	user.CalendarAccounts = nil
 	user.CalendarOptions = nil
-	user.StripeCustomerId = nil
 	user.PrimaryAccountKey = nil
 }
 

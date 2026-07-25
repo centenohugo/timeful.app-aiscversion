@@ -1,13 +1,11 @@
 <template>
   <v-app>
-    <DiscordBanner />
     <AutoSnackbar color="error" :text="error" />
     <AutoSnackbar color="tw-bg-blue" :text="info" />
     <SignInNotSupportedDialog v-model="webviewDialog" />
     <SignInDialog
       v-model="signInDialog"
       @signIn="_signIn"
-      @emailSignIn="_emailSignIn"
     />
     <NewDialog
       v-model="newDialogOptions.show"
@@ -16,11 +14,6 @@
       :no-tabs="newDialogOptions.eventOnly"
       :folder-id="newDialogOptions.folderId"
     />
-    <UpgradeDialog
-      :value="upgradeDialogVisible"
-      @input="handleUpgradeDialogInput"
-    />
-    <UpvoteRedditSnackbar />
     <div
       v-if="showHeader"
       class="tw-fixed tw-z-40 tw-h-14 tw-w-screen tw-bg-white sm:tw-h-16"
@@ -32,15 +25,6 @@
         <router-link :to="{ name: 'home' }">
           <Logo type="timeful" />
         </router-link>
-        <v-expand-x-transition>
-          <span
-            v-if="isPremiumUser"
-            class="tw-ml-2 tw-cursor-default tw-rounded-md tw-bg-[linear-gradient(-25deg,#0a483d,#00994c,#126045,#0a483d)] tw-px-2 tw-py-1 tw-text-sm tw-font-semibold tw-text-white tw-opacity-80"
-          >
-            Premium
-          </span>
-        </v-expand-x-transition>
-
         <v-spacer />
 
         <v-btn
@@ -57,7 +41,6 @@
           text
           href="https://forms.gle/A96i4TTWeKgH3P1W6"
           target="_blank"
-          @click="trackFeedbackClick"
         >
           Give feedback
         </v-btn>
@@ -229,7 +212,7 @@ html {
 </style>
 
 <script>
-import { mapMutations, mapState, mapActions, mapGetters } from "vuex"
+import { mapMutations, mapState, mapActions } from "vuex"
 import {
   get,
   getLocation,
@@ -237,25 +220,19 @@ import {
   post,
   signInGoogle,
   signInOutlook,
-  isPremiumUser,
 } from "@/utils"
 import {
   authTypes,
   calendarTypes,
   eventTypes,
-  numFreeEvents,
-  upgradeDialogTypes,
 } from "@/constants"
 import AutoSnackbar from "@/components/AutoSnackbar"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
-import UpvoteRedditSnackbar from "@/components/UpvoteRedditSnackbar.vue"
 import Logo from "@/components/Logo.vue"
 import isWebview from "is-ua-webview"
 import NewDialog from "./components/NewDialog.vue"
-import UpgradeDialog from "@/components/pricing/UpgradeDialog.vue"
 import SignInDialog from "@/components/SignInDialog.vue"
-import DiscordBanner from "@/components/DiscordBanner.vue"
 
 export default {
   name: "App",
@@ -271,11 +248,8 @@ export default {
     AuthUserMenu,
     SignInNotSupportedDialog,
     NewDialog,
-    UpvoteRedditSnackbar,
     Logo,
-    UpgradeDialog,
     SignInDialog,
-    DiscordBanner,
   },
 
   data: () => ({
@@ -287,13 +261,10 @@ export default {
   }),
 
   computed: {
-    ...mapGetters(["isPremiumUser"]),
     ...mapState([
       "authUser",
       "error",
       "info",
-      "enablePaywall",
-      "upgradeDialogVisible",
       "newDialogOptions",
     ]),
     isPhone() {
@@ -328,23 +299,16 @@ export default {
     ...mapMutations([
       "setAuthUser",
       "setSignUpFormEnabled",
-      "setPricingPageConversion",
-      "setEnablePaywall",
       "setFeatureFlagsLoaded",
     ]),
     ...mapActions([
       "getEvents",
-      "showUpgradeDialog",
-      "hideUpgradeDialog",
       "createNew",
     ]),
     handleScroll(e) {
       this.scrollY = window.scrollY
     },
     _createNew(eventOnly = false) {
-      this.$posthog.capture("create_new_button_clicked", {
-        eventOnly: eventOnly,
-      })
       this.createNew({ eventOnly })
     },
     signIn() {
@@ -394,35 +358,8 @@ export default {
         }
       }
     },
-    _emailSignIn(user) {
-      this.setAuthUser(user)
-      this.$posthog?.identify(user._id, {
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      })
-      if (this.$route.name === "landing") {
-        this.$router.push({ name: "home" })
-      }
-    },
     setFeatureFlags() {
-      if (!this.$posthog) return
-
-      // this.setSignUpFormEnabled(this.$posthog.isFeatureEnabled("sign-up-form"))
-      // this.setPricingPageConversion(
-      // this.$posthog.getFeatureFlag("pricing-page-conversion")
-      // )
-      // )
-      // this.setEnablePaywall(this.$posthog.isFeatureEnabled("enable-paywall"))
       this.setFeatureFlagsLoaded(true)
-    },
-    trackFeedbackClick() {
-      this.$posthog.capture("give_feedback_button_clicked")
-    },
-    handleUpgradeDialogInput(value) {
-      if (!value) {
-        this.hideUpgradeDialog()
-      }
     },
   },
 
@@ -431,11 +368,6 @@ export default {
       .then((authUser) => {
         this.setAuthUser(authUser)
 
-        this.$posthog?.identify(authUser._id, {
-          email: authUser.email,
-          firstName: authUser.firstName,
-          lastName: authUser.lastName,
-        })
       })
       .catch(() => {
         this.setAuthUser(null)
@@ -465,7 +397,6 @@ export default {
       async handler() {
         const originalHref = window.location.href
         if (this.$route.name) {
-          this.$posthog?.capture("$pageview")
         }
 
         // Check for poster query parameter
@@ -487,16 +418,7 @@ export default {
     authUser: {
       immediate: true,
       handler() {
-        if (this.$posthog) {
-          this.setFeatureFlags()
-          // Check feature flags (only if posthog is enabled)
-          // this.$posthog.setPersonPropertiesForFlags({
-          //   email: this.authUser?.email,
-          // })
-          // this.$posthog.onFeatureFlags(() => {
-          //   this.setFeatureFlags()
-          // })
-        }
+        this.setFeatureFlags()
       },
     },
   },

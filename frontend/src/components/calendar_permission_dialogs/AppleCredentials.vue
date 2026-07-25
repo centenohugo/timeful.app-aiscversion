@@ -92,7 +92,6 @@ export default {
           await this.refreshAuthUser()
           this.$emit("addedCalendar")
 
-          this.$posthog.capture("Apple Calendar Added")
         })
         .catch((err) => {
           if (err.error === errors.InvalidCredentials) {

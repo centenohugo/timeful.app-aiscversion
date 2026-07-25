@@ -1,8 +1,5 @@
 <template>
   <span>
-    <FormerlyKnownAs
-      class="tw-mx-auto tw-mb-10 tw-mt-3 tw-max-w-6xl tw-pl-4 sm:tw-pl-12"
-    />
     <div
       class="tw-mx-auto tw-mb-24 tw-mt-4 tw-max-w-6xl tw-space-y-4 sm:tw-mb-12 sm:tw-mt-7"
     >
@@ -101,7 +98,6 @@ import Dashboard from "@/components/home/Dashboard.vue"
 import { mapState, mapActions, mapMutations } from "vuex"
 import { eventTypes } from "@/constants"
 import { isPhone, get } from "@/utils"
-import FormerlyKnownAs from "@/components/FormerlyKnownAs.vue"
 
 export default {
   name: "Home",
@@ -117,7 +113,6 @@ export default {
     When2meetImportDialog,
     TimefulImportDialog,
     Dashboard,
-    FormerlyKnownAs,
   },
 
   props: {
@@ -166,11 +161,9 @@ export default {
     createFolder() {},
     convertW2M() {
       this.showW2MDialog = true
-      this.$posthog?.capture("convert_when2meet_to_timeful_clicked")
     },
     importTimeful() {
       this.showImportDialog = true
-      this.$posthog?.capture("import_timeful_event_clicked")
     },
   },
 
