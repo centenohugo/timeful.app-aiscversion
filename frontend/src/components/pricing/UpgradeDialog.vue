@@ -672,14 +672,8 @@ export default {
     async handleUpgrade(price) {
       // if (this.isStudent) {
       //   this.showStudentProofDialog = true
-      //   this.$posthog.capture("student_upgrade_attempt", {
-      //     price: price,
-      //   })
       //   return
       // }
-      this.$posthog.capture("upgrade_clicked", {
-        price: this.formattedPrice(price),
-      })
 
       if (!this.authUser) {
         const upgradeParams = {
@@ -730,9 +724,6 @@ export default {
     isStudent: {
       handler(val) {
         if (val) {
-          this.$posthog.capture("student_pricing_viewed", {
-            prices: this.pricesShown,
-          })
         }
       },
     },
@@ -747,10 +738,6 @@ export default {
         if (this.value) {
           post("/analytics/upgrade-dialog-viewed", {
             userId: this.authUser?._id ?? this.$posthog?.get_distinct_id(),
-            price: this.pricesShown,
-            type: this.upgradeDialogType,
-          })
-          this.$posthog.capture("upgrade_dialog_viewed", {
             price: this.pricesShown,
             type: this.upgradeDialogType,
           })

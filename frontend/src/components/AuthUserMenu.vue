@@ -91,14 +91,12 @@ export default {
     async signOut() {
       await post("/auth/sign-out")
       this.setAuthUser(null)
-      this.$posthog?.reset()
       location.reload()
     },
     goToSettings() {
       this.$router.replace({ name: "settings" })
     },
     addTeamMember() {
-      this.$posthog?.capture("add_team_member_clicked")
       this.showTeamsNotReadyDialog = true
     },
   },

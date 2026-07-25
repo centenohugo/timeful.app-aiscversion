@@ -68,7 +68,6 @@ export default {
           this.setAuthUser(user)
           this.fulfillmentComplete = true
           this.fireConfetti()
-          this.$posthog.capture("upgrade_success")
         } else {
           // Upgrade cancelled, navigate to redirect url
           this.navigateToRedirectUrl()
