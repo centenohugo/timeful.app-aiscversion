@@ -156,7 +156,7 @@ import { isPhone } from "@/utils"
 import ExpandableSection from "../ExpandableSection.vue"
 import EventOptions from "./EventOptions.vue"
 import { timeTypes, guestUserId } from "@/constants"
-import { mapState, mapGetters } from "vuex"
+import { mapState } from "vuex"
 
 export default {
   name: "ToolRow",
@@ -200,7 +200,6 @@ export default {
 
   computed: {
     ...mapState(["authUser"]),
-    ...mapGetters(["isPremiumUser"]),
     isPhone() {
       return isPhone(this.$vuetify)
     },

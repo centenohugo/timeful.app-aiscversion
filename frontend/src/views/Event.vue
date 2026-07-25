@@ -289,7 +289,6 @@
           <ScheduleOverlap
             ref="scheduleOverlap"
             :event="event"
-            :ownerIsPremium="ownerIsPremium"
             :fromEditEvent="fromEditEvent"
             :loadingCalendarEvents="loading"
             :calendarEventsMap="calendarEventsMap"
@@ -455,7 +454,7 @@ import {
 } from "@/utils"
 import { isBetween } from "@/utils/general_utils"
 import { validateEmail } from "@/utils"
-import { mapActions, mapState, mapMutations, mapGetters } from "vuex"
+import { mapActions, mapState, mapMutations } from "vuex"
 import dayjs from "dayjs"
 import utcPlugin from "dayjs/plugin/utc"
 import timezonePlugin from "dayjs/plugin/timezone"
@@ -473,7 +472,6 @@ import {
   calendarTypes,
   dayIndexToDayString,
   allTimezones,
-  guestUserId,
 } from "@/constants"
 import isWebview from "is-ua-webview"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
@@ -526,8 +524,6 @@ export default {
     scheduleOverlapComponent: null,
     scheduleOverlapComponentLoaded: false,
 
-    ownerIsPremium: false,
-    ownerPremiumChecked: false,
 
     curGuestId: "", // Id of the current guest being edited
     calendarPermissionGranted: true,
@@ -558,7 +554,6 @@ export default {
 
   computed: {
     ...mapState(["authUser", "events"]),
-    ...mapGetters(["isPremiumUser"]),
     allowScheduleEvent() {
       return this.scheduleOverlapComponent?.allowScheduleEvent
     },
@@ -741,19 +736,6 @@ export default {
       // Make single request with guestName if available
       this.event = await get(url)
       processEvent(this.event)
-    },
-
-    async checkOwnerPremium() {
-      const ownerId = this.event?.ownerId
-      if (ownerId && ownerId !== guestUserId) {
-        try {
-          const res = await get(`/users/${ownerId}/is-premium`)
-          this.ownerIsPremium = res.isPremium
-        } catch {
-          this.ownerIsPremium = false
-        }
-      }
-      this.ownerPremiumChecked = true
     },
 
     setAvailabilityAutomatically(calendarType = calendarTypes.GOOGLE) {
@@ -1756,7 +1738,6 @@ export default {
     // Get event details
     try {
       await this.refreshEvent()
-      await this.checkOwnerPremium()
 
       // Redirect if we're at the wrong route
       if (this.event.type === eventTypes.GROUP) {
