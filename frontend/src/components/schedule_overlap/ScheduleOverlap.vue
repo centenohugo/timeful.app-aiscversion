@@ -2839,15 +2839,6 @@ export default {
         type = "availability"
         payload.availability = this.availabilityArray
         payload.ifNeeded = this.ifNeededArray
-        if (this.authUser && !this.addingAvailabilityAsGuest) {
-          payload.guest = false
-        } else {
-          payload.guest = true
-          payload.name = guestPayload.name
-          payload.email = guestPayload.email
-
-          localStorage[this.guestNameKey] = guestPayload.name
-        }
       }
 
       await post(`/events/${this.event._id}/response`, payload)
@@ -2914,17 +2905,8 @@ export default {
       return true
     },
 
-    async deleteAvailability(name = "") {
-      const payload = {}
-      if (this.authUser && !this.addingAvailabilityAsGuest) {
-        payload.guest = false
-        payload.userId = this.authUser._id
-
-      } else {
-        payload.guest = true
-        payload.name = name
-
-      }
+    async deleteAvailability() {
+      const payload = { userId: this.authUser._id }
       await _delete(`/events/${this.event._id}/response`, payload)
       this.availability = new Set()
       if (this.isGroup) this.$router.replace({ name: "home" })

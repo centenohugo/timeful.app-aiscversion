@@ -29,15 +29,19 @@ import (
 func InitEvents(router *gin.RouterGroup) {
 	eventRouter := router.Group("/events")
 
-	eventRouter.POST("", createEvent)
+	// Creating and editing an event, and responding to one, require a signed-in
+	// user so that every response is attributed to a real account.
+	eventRouter.POST("", middleware.AuthRequired(), createEvent)
 	eventRouter.POST("/import", middleware.AuthRequired(), importEvent)
-	eventRouter.PUT("/:eventId", editEvent)
+	eventRouter.PUT("/:eventId", middleware.AuthRequired(), editEvent)
+	eventRouter.POST("/:eventId/response", middleware.AuthRequired(), updateEventResponse)
+	eventRouter.DELETE("/:eventId/response", middleware.AuthRequired(), deleteEventResponse)
+
+	// Viewing an event and its responses stays public: anybody with the link can
+	// see the current state of everybody's availability.
 	eventRouter.GET("/:eventId/ids", getEventIds)
 	eventRouter.GET("/:eventId", getEvent)
 	eventRouter.GET("/:eventId/responses", getResponses)
-	eventRouter.POST("/:eventId/response", updateEventResponse)
-	eventRouter.DELETE("/:eventId/response", deleteEventResponse)
-	eventRouter.POST("/:eventId/rename-user", renameUser)
 	eventRouter.POST("/:eventId/decline", middleware.AuthRequired(), declineInvite)
 	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthRequired(), getCalendarAvailabilities)
 	eventRouter.DELETE("/:eventId", middleware.AuthRequired(), deleteEvent)
@@ -89,24 +93,9 @@ func createEvent(c *gin.Context) {
 		fmt.Println(err)
 		return
 	}
-	session := sessions.Default(c)
-
-	// If user logged in, set owner id to their user id, otherwise set owner id to nil
-	userIdInterface := session.Get("userId")
-	userId, signedIn := userIdInterface.(string)
-	var user *models.User
-	var ownerId primitive.ObjectID
-	if signedIn {
-		user = db.GetUserById(userId)
-		if user == nil {
-			signedIn = false
-			ownerId = primitive.NilObjectID
-		} else {
-			ownerId = utils.StringToObjectID(userId)
-		}
-	} else {
-		ownerId = primitive.NilObjectID
-	}
+	// AuthRequired guarantees a signed-in user, so the event always has a real owner
+	user := utils.GetAuthUser(c)
+	ownerId := user.Id
 
 	// Construct event object
 	numResponses := 0
@@ -141,28 +130,8 @@ func createEvent(c *gin.Context) {
 	attendees := make([]models.Attendee, 0)
 	if payload.Type == models.GROUP {
 
-		if signedIn {
-			// 	// Add event owner to group by default
-			// 	enabledCalendars := make(map[string][]string)
-			// 	for email, calendarAccount := range user.CalendarAccounts {
-			// 		if utils.Coalesce(calendarAccount.Enabled) {
-			// 			enabledCalendars[email] = make([]string, 0)
-			// 			for calendarId, subCalendar := range utils.Coalesce(calendarAccount.SubCalendars) {
-			// 				if utils.Coalesce(subCalendar.Enabled) {
-			// 					enabledCalendars[email] = append(enabledCalendars[email], calendarId)
-			// 				}
-			// 			}
-			// 		}
-			// 	}
-			// 	event.Responses[user.Id.Hex()] = &models.Response{
-			// 		UserId:                  user.Id,
-			// 		UseCalendarAvailability: utils.TruePtr(),
-			// 		EnabledCalendars:        &enabledCalendars,
-			// 	}
-
-			// Add owner as attendee
-			attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr(), EventId: event.Id})
-		}
+		// Add owner as attendee
+		attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr(), EventId: event.Id})
 
 		// Add attendees
 		for _, email := range payload.Attendees {
@@ -181,15 +150,7 @@ func createEvent(c *gin.Context) {
 	}
 	insertedId := result.InsertedID.(primitive.ObjectID).Hex()
 
-	// Send slackbot message
-	// var creator string
-	if signedIn {
-		// creator = fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Email)
-		db.UsersCollection.UpdateOne(context.Background(), bson.M{"_id": ownerId}, bson.M{"$inc": bson.M{"numEventsCreated": 1}})
-	} else {
-		// creator = "Guest :face_with_open_eyes_and_hand_over_mouth:"
-	}
-	// slackbot.SendEventCreatedMessage(insertedId, creator, event, len(attendees))
+	db.UsersCollection.UpdateOne(context.Background(), bson.M{"_id": ownerId}, bson.M{"$inc": bson.M{"numEventsCreated": 1}})
 
 	c.JSON(http.StatusCreated, gin.H{"eventId": insertedId, "shortId": event.ShortId})
 }
@@ -457,11 +418,11 @@ func getEvent(c *gin.Context) {
 	if userIdInterface != nil {
 		userSesh = userIdInterface.(string)
 	}
-	guestName := c.Query("guestName")
 	isOwner := userSesh != "" && ownerSesh == userSesh
 
-	// Strip sensitive user info from all responses
-	showEmails := isOwner && utils.Coalesce(event.CollectEmails)
+	// Strip sensitive user info. Names stay visible so everybody can see who
+	// picked which slot; email addresses are only exposed to the event owner.
+	showEmails := isOwner
 	for userId, response := range responsesMap {
 		stripSensitiveUserFields(response.User)
 		if !showEmails {
@@ -486,65 +447,7 @@ func getEvent(c *gin.Context) {
 	// Update event.ResponsesMap to match the final responsesMap
 	event.ResponsesMap = responsesMap
 
-	// Apply privacy logic based on blindAvailabilityEnabled
-	if !utils.Coalesce(event.BlindAvailabilityEnabled) {
-		// Blind availability is NOT enabled - return response as-is
-		c.JSON(http.StatusOK, event)
-		return
-	}
-
-	// Blind availability IS enabled - apply additional privacy filtering
-
-	var privatizedResponse map[string]interface{}
-	var err error
-
-	if userSesh != "" {
-		// User session exists (user is logged in)
-		if ownerSesh == userSesh {
-			// User is the owner - return response as-is
-			privatizedResponse, err = utils.PrivatizeEventResponse(event, []string{}, []utils.PartialOmission{})
-		} else {
-			// User is NOT the owner - privatize response
-			privateFields := []string{"numResponses"}
-			partialOmissions := []utils.PartialOmission{
-				{
-					FieldName: "responses",
-					KeepKey:   userSesh,
-				},
-			}
-			privatizedResponse, err = utils.PrivatizeEventResponse(event, privateFields, partialOmissions)
-		}
-	} else if guestName != "" {
-		// Guest name query parameter exists
-		privateFields := []string{"numResponses"}
-		partialOmissions := []utils.PartialOmission{
-			{
-				FieldName: "responses",
-				KeepKey:   guestName,
-			},
-		}
-		privatizedResponse, err = utils.PrivatizeEventResponse(event, privateFields, partialOmissions)
-	} else {
-		// No session, no guest name - remove all private fields
-		privateFields := []string{"numResponses", "responses", "remindees"}
-		privatizedResponse, err = utils.PrivatizeEventResponse(event, privateFields, []utils.PartialOmission{})
-	}
-
-	if err != nil {
-		logger.StdErr.Printf("Failed to privatize event response: %v\n", err)
-		// Fall back to returning the original event if privatization fails
-		c.JSON(http.StatusOK, event)
-		return
-	}
-
-	// Log response body
-	responseJSON, err := json.MarshalIndent(privatizedResponse, "", "  ")
-	if err != nil {
-		logger.StdErr.Printf("Failed to marshal privatized response for logging: %v\n", err)
-	}
-	_ = responseJSON
-	// Return the privatized response
-	c.JSON(http.StatusOK, privatizedResponse)
+	c.JSON(http.StatusOK, event)
 }
 
 // @Summary Gets responses for an event, filtering availability to be within the date ranges
@@ -613,58 +516,22 @@ func getResponses(c *gin.Context) {
 	if userIdInterface != nil {
 		userSesh = userIdInterface.(string)
 	}
-	guestName := c.Query("guestName")
 	isOwner := userSesh != "" && ownerSesh == userSesh
 
-	// Strip sensitive user info from all responses
-	showEmails := isOwner && utils.Coalesce(event.CollectEmails)
+	// Strip sensitive user info. Names stay visible so everybody can see who
+	// picked which slot; email addresses are only exposed to the event owner.
 	for userId, response := range responsesMap {
 		stripSensitiveUserFields(response.User)
-		if !showEmails {
+		if !isOwner {
 			response.Email = ""
-			if response.User != nil && !shouldKeepGroupResponseUserEmails(event, userSesh, isOwner) {
+			if response.User != nil {
 				response.User.Email = ""
 			}
 		}
 		responsesMap[userId] = response
 	}
 
-	// Apply privacy logic based on blindAvailabilityEnabled
-	if !utils.Coalesce(event.BlindAvailabilityEnabled) {
-		// Blind availability is NOT enabled - return response as-is
-		c.JSON(http.StatusOK, responsesMap)
-		return
-	}
-
-	// Blind availability IS enabled - apply privacy filtering
-	if userSesh != "" {
-		// User session exists (user is logged in)
-		if ownerSesh == userSesh {
-			// User is the owner - return response as-is
-			c.JSON(http.StatusOK, responsesMap)
-			return
-		} else {
-			// User is NOT the owner - return only their own response
-			filteredMap := make(map[string]*models.Response)
-			if userResponse, exists := responsesMap[userSesh]; exists {
-				filteredMap[userSesh] = userResponse
-			}
-			c.JSON(http.StatusOK, filteredMap)
-			return
-		}
-	} else if guestName != "" {
-		// Guest name query parameter exists - return only that guest's response
-		filteredMap := make(map[string]*models.Response)
-		if guestResponse, exists := responsesMap[guestName]; exists {
-			filteredMap[guestName] = guestResponse
-		}
-		c.JSON(http.StatusOK, filteredMap)
-		return
-	} else {
-		// No session, no guest name - return empty map
-		c.JSON(http.StatusOK, make(map[string]*models.Response))
-		return
-	}
+	c.JSON(http.StatusOK, responsesMap)
 }
 
 // @Summary Updates the current user's availability
@@ -672,18 +539,13 @@ func getResponses(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param eventId path string true "Event ID"
-// @Param payload body object{availability=[]string,ifNeeded=[]string,guest=bool,name=string,useCalendarAvailability=bool,enabledCalendars=map[string][]string,manualAvailability=map[string][]string,calendarOptions=models.CalendarOptions,signUpBlockIds=[]string} true "Object containing info about the event response to update"
+// @Param payload body object{availability=[]string,ifNeeded=[]string,useCalendarAvailability=bool,enabledCalendars=map[string][]string,manualAvailability=map[string][]string,calendarOptions=models.CalendarOptions,signUpBlockIds=[]string} true "Object containing info about the event response to update"
 // @Success 200
 // @Router /events/{eventId}/response [post]
 func updateEventResponse(c *gin.Context) {
 	payload := struct {
 		Availability []primitive.DateTime `json:"availability"`
 		IfNeeded     []primitive.DateTime `json:"ifNeeded"`
-
-		// Guest information
-		Guest *bool  `json:"guest" binding:"required"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
 
 		// Calendar availability variables for Availability Groups feature
 		UseCalendarAvailability *bool                                        `json:"useCalendarAvailability"`
@@ -697,7 +559,6 @@ func updateEventResponse(c *gin.Context) {
 	if err := c.Bind(&payload); err != nil {
 		return
 	}
-	session := sessions.Default(c)
 	eventId := c.Param("eventId")
 	event := db.GetEventByEitherId(eventId)
 	if event == nil {
@@ -705,50 +566,17 @@ func updateEventResponse(c *gin.Context) {
 		return
 	}
 
-	// Security check: If blindAvailabilityEnabled is true, non-owners cannot set guest availability
-	//NOTE: this ONLY stops a user from setting guest availability from their account (via setSlots), somebody could still
-	// go on incognito and set guest availability.
-	if utils.Coalesce(event.BlindAvailabilityEnabled) {
-		ownerSesh := event.OwnerId.Hex()
-		userIdInterface := session.Get("userId")
-		var userSesh string
-		if userIdInterface != nil {
-			userSesh = userIdInterface.(string)
-		}
-
-		// If user is logged in and NOT the owner, and they're trying to set guest availability, block it
-		if userSesh != "" && ownerSesh != userSesh && *payload.Guest {
-			c.JSON(http.StatusForbidden, responses.Error{Error: errs.UserNotEventOwner})
-			c.Abort()
-			return
-		}
-	}
-
 	eventResponses := db.GetEventResponses(event.Id.Hex())
 
 	var userIdString string
 	var userHasResponded bool
 	if !utils.Coalesce(event.IsSignUpForm) {
-		// Populate response differently if guest vs signed in user
+		// AuthRequired guarantees a signed-in user, so responses are always attributed
 		var response models.Response
-		if *payload.Guest {
-			userIdString = payload.Name
-
-			response = models.Response{
-				Name:         payload.Name,
-				Email:        payload.Email,
-				Availability: payload.Availability,
-				IfNeeded:     payload.IfNeeded,
-			}
-		} else {
-			userIdInterface := session.Get("userId")
-			if userIdInterface == nil {
-				c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
-				c.Abort()
-				return
-			}
-			userIdString = userIdInterface.(string)
-			userId := utils.StringToObjectID(userIdString)
+		{
+			authUser := utils.GetAuthUser(c)
+			userIdString = authUser.Id.Hex()
+			userId := authUser.Id
 
 			response = models.Response{
 				UserId:                  userId,
@@ -835,23 +663,9 @@ func updateEventResponse(c *gin.Context) {
 	} else {
 		var response models.SignUpResponse
 		var userIdString string
-		// Populate response differently if guest vs signed in user
-		if *payload.Guest {
-			userIdString = payload.Name
-
-			response = models.SignUpResponse{
-				SignUpBlockIds: payload.SignUpBlockIds,
-				Name:           payload.Name,
-				Email:          payload.Email,
-			}
-		} else {
-			userIdInterface := session.Get("userId")
-			if userIdInterface == nil {
-				c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
-				c.Abort()
-				return
-			}
-			userIdString = userIdInterface.(string)
+		// AuthRequired guarantees a signed-in user
+		{
+			userIdString = utils.GetAuthUser(c).Id.Hex()
 
 			response = models.SignUpResponse{
 				SignUpBlockIds: payload.SignUpBlockIds,
@@ -887,19 +701,16 @@ func updateEventResponse(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param eventId path string true "Event ID"
-// @Param payload body object{userId=string,guest=bool,name=string} true "Object containing info about the event response to delete"
+// @Param payload body object{userId=string} true "Object containing info about the event response to delete"
 // @Success 200
 // @Router /events/{eventId}/response [delete]
 func deleteEventResponse(c *gin.Context) {
 	payload := struct {
 		UserId string `json:"userId"`
-		Guest  *bool  `json:"guest" binding:"required"`
-		Name   string `json:"name"`
 	}{}
 	if err := c.Bind(&payload); err != nil {
 		return
 	}
-	session := sessions.Default(c)
 	eventId := c.Param("eventId")
 	event := db.GetEventByEitherId(eventId)
 	if event == nil {
@@ -908,29 +719,8 @@ func deleteEventResponse(c *gin.Context) {
 	}
 	eventResponses := db.GetEventResponses(event.Id.Hex())
 
-	if *payload.Guest {
-		if utils.Coalesce(event.IsSignUpForm) {
-			delete(event.SignUpResponses, payload.Name)
-		} else {
-			// Remove response from array
-			for i := range eventResponses {
-				if eventResponses[i].Response.Name == payload.Name {
-					db.EventResponsesCollection.DeleteOne(context.Background(), bson.M{
-						"_id": eventResponses[i].Id,
-					})
-					*event.NumResponses--
-					break
-				}
-			}
-		}
-	} else {
-		userIdInterface := session.Get("userId")
-		if userIdInterface == nil {
-			c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
-			c.Abort()
-			return
-		}
-		userIdString := userIdInterface.(string)
+	{
+		userIdString := utils.GetAuthUser(c).Id.Hex()
 
 		// Don't allow user to delete availability of other users if they aren't the owner of the event
 		if payload.UserId != userIdString && event.OwnerId.Hex() != userIdString {
@@ -981,44 +771,6 @@ func deleteEventResponse(c *gin.Context) {
 	if err != nil {
 		logger.StdErr.Panicln(err)
 	}
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
-// @Summary Rename a guest response
-// @Tags events
-// @Accept json
-// @Produce json
-// @Param eventId path string true "Event ID"
-// @Param payload body object{oldName=string,newName=string} true "Object containing info about the guest response to rename"
-// @Success 200
-// @Failure 400 {object} responses.Error "Guest name already exists"
-// @Router /events/{eventId}/rename-user [post]
-func renameUser(c *gin.Context) {
-	payload := struct {
-		OldName string `json:"oldName"`
-		NewName string `json:"newName"`
-	}{}
-	if err := c.Bind(&payload); err != nil {
-		return
-	}
-	eventId := c.Param("eventId")
-	event := db.GetEventByEitherId(eventId)
-	if event == nil {
-		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
-		return
-	}
-
-	// Check if the new name already exists (only if it's different from the old name)
-	if payload.NewName != payload.OldName {
-		if db.GuestNameExists(event.Id.Hex(), payload.NewName) {
-			c.JSON(http.StatusBadRequest, responses.Error{Error: "A guest with this name already exists for this event"})
-			return
-		}
-	}
-
-	// Check if old name is a guest response
-	db.UpdateGuestResponseName(event.Id.Hex(), payload.OldName, payload.NewName)
 
 	c.JSON(http.StatusOK, gin.H{})
 }

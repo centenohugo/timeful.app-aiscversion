@@ -32,7 +32,7 @@
           <v-btn
             class="tw-block tw-self-center tw-rounded-lg tw-bg-green tw-px-10 tw-text-base sm:tw-px-10 lg:tw-px-12"
             dark
-            @click="authUser ? openDashboard() : (newDialog = true)"
+            @click="authUser ? openDashboard() : signIn()"
             large
             :x-large="$vuetify.breakpoint.mdAndUp"
           >

@@ -13,14 +13,6 @@
       <!-- Google sign in not supported dialog -->
       <SignInNotSupportedDialog v-model="webviewDialog" />
 
-      <!-- Guest dialog -->
-      <GuestDialog
-        v-model="guestDialog"
-        @submit="handleGuestDialogSubmit"
-        :event="event"
-        :respondents="Object.keys(event.responses)"
-      />
-
       <!-- Join sign up slot dialog-->
       <SignUpForSlotDialog
         v-if="currSignUpBlock"
@@ -277,9 +269,7 @@
             :weekOffset.sync="weekOffset"
             :curGuestId="curGuestId"
             :initial-timezone="initialTimezone"
-            :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
             @addAvailability="addAvailability"
-            @addAvailabilityAsGuest="addAvailabilityAsGuest"
             @refreshEvent="refreshEvent"
             @highlightAvailabilityBtn="highlightAvailabilityBtn"
             @deleteAvailability="deleteAvailability"
@@ -417,7 +407,6 @@ dayjs.extend(timezonePlugin)
 
 import NewDialog from "@/components/NewDialog.vue"
 import ScheduleOverlap from "@/components/schedule_overlap/ScheduleOverlap.vue"
-import GuestDialog from "@/components/GuestDialog.vue"
 import SignUpForSlotDialog from "@/components/sign_up_form/SignUpForSlotDialog.vue"
 import {
   errors,
@@ -444,7 +433,6 @@ export default {
   },
 
   components: {
-    GuestDialog,
     SignUpForSlotDialog,
     ScheduleOverlap,
     NewDialog,
@@ -459,7 +447,6 @@ export default {
 
     choiceDialog: false,
     webviewDialog: false,
-    guestDialog: false,
     signUpForSlotDialog: false,
     editEventDialog: false,
     pagesNotVisitedDialog: false,
@@ -475,7 +462,6 @@ export default {
 
     curGuestId: "", // Id of the current guest being edited
     calendarPermissionGranted: true,
-    addingAvailabilityAsGuest: false, // Whether a signed in user is current adding availability as a guest
 
     weekOffset: 0,
 
@@ -579,9 +565,28 @@ export default {
     ...mapActions(["showError", "showInfo", "getEvents"]),
     ...mapMutations(["setAuthUser"]),
 
-    /** Show choice dialog if not signed in, otherwise, immediately start editing availability */
+    /** Send the user to Google sign in, returning to this event afterwards */
+    signIn() {
+      if (isWebview(navigator.userAgent)) {
+        this.webviewDialog = true
+        return
+      }
+      signInGoogle({
+        state: {
+          type: authTypes.EVENT_SIGN_IN,
+          eventId: this.eventId,
+        },
+        selectAccount: true,
+      })
+    },
+    /** Responding requires a signed-in account, so prompt sign in first */
     addAvailability() {
       if (!this.scheduleOverlapComponent) return
+
+      if (!this.authUser) {
+        this.signIn()
+        return
+      }
 
       // Start editing immediately if days only
       if (this.event?.daysOnly) {
@@ -602,11 +607,6 @@ export default {
         this.choiceDialog = true
       }
     },
-    /** Add guest availability while signed in */
-    addAvailabilityAsGuest() {
-      this.addingAvailabilityAsGuest = true
-      this.setAvailabilityManually()
-    },
     cancelEditing() {
       /* Cancels editing and resets availability to previous */
       if (!this.scheduleOverlapComponent) return
@@ -616,7 +616,6 @@ export default {
       else this.scheduleOverlapComponent.resetSignUpForm()
       this.scheduleOverlapComponent.stopEditing()
       this.curGuestId = ""
-      this.addingAvailabilityAsGuest = false
     },
     copyLink() {
       /* Copies event link to clipboard */
@@ -628,16 +627,7 @@ export default {
     async deleteAvailability() {
       if (!this.scheduleOverlapComponent) return
 
-      if (!this.authUser || this.addingAvailabilityAsGuest) {
-        if (this.curGuestId) {
-          await this.scheduleOverlapComponent.deleteAvailability(
-            this.curGuestId
-          )
-          this.curGuestId = ""
-        }
-      } else {
-        await this.scheduleOverlapComponent.deleteAvailability()
-      }
+      await this.scheduleOverlapComponent.deleteAvailability()
 
       this.showInfo(this.isGroup ? "Left group!" : "Availability deleted!")
       this.scheduleOverlapComponent.stopEditing()
@@ -660,21 +650,7 @@ export default {
       } catch (err) {
         // If ID resolution fails, continue with existing fallback behavior.
       }
-      // Try to get guest name from localStorage using resolved longId.
-      let guestName = null
-      if (typeof localStorage !== "undefined") {
-        if (resolvedLongId) {
-          guestName = localStorage[`${resolvedLongId}.guestName`]
-        }
-      }
-
-      // Build URL with guestName if available
-      let url = `/events/${sanitizedId}`
-      if (guestName && guestName.length > 0) {
-        url += `?guestName=${encodeURIComponent(guestName)}`
-      }
-
-      // Make single request with guestName if available
+      const url = `/events/${sanitizedId}`
       this.event = await get(url)
       processEvent(this.event)
     },
@@ -753,20 +729,6 @@ export default {
         return
       }
 
-      if (!this.authUser || this.addingAvailabilityAsGuest) {
-        if (this.curGuestId) {
-          this.saveChangesAsGuest({
-            name: this.curGuestId,
-            email: this.event.responses[this.curGuestId].email,
-          })
-          this.curGuestId = ""
-          this.addingAvailabilityAsGuest = false
-        } else {
-          this.guestDialog = true
-        }
-        return
-      }
-
       let changesPersisted = true
 
       if (this.isSignUp) {
@@ -781,21 +743,6 @@ export default {
         this.scheduleOverlapComponent.stopEditing()
       }
     },
-    async saveChangesAsGuest(payload) {
-      /* After guest dialog is submitted, submit availability with the given name */
-      if (!this.scheduleOverlapComponent) return
-
-      if (payload.name.length > 0) {
-        await this.scheduleOverlapComponent.submitAvailability(payload)
-
-        this.showInfo("Changes saved!")
-        this.scheduleOverlapComponent.resetCurUserAvailability()
-        this.scheduleOverlapComponent.stopEditing()
-        this.guestDialog = false
-        this.addingAvailabilityAsGuest = false
-      }
-    },
-
     scheduleEvent() {
       this.scheduleOverlapComponent?.scheduleEvent()
     },
@@ -993,10 +940,6 @@ export default {
       delete e["returnValue"]
     },
 
-    handleGuestDialogSubmit(guestPayload) {
-      this.saveChangesAsGuest(guestPayload)
-    },
-
     handleMessage(event) {
       if (!isValidPluginMessage(event)) return
 
@@ -1070,97 +1013,6 @@ export default {
 
       // Validation: Check timeIncrement exists, default to 15 if not
       const timeIncrement = this.event.timeIncrement ?? 15
-
-      // Security check: If blindAvailabilityEnabled is true and user is NOT the owner,
-      // reject any request with guestName parameter
-      const payloadGuestName = event.data?.payload?.guestName
-      const hasGuestName = payloadGuestName && payloadGuestName.length > 0
-
-      if (this.event.blindAvailabilityEnabled) {
-        // Check if user is owner: ownerId is only returned by backend if user is the owner
-        // So if ownerId exists and matches current user's ID, they are the owner
-        const isOwner =
-          this.event.ownerId && this.authUser?._id === this.event.ownerId
-        if (!isOwner && hasGuestName) {
-          sendPluginError(
-            requestId,
-            command,
-            "Non-owners cannot set guest availability when 'Hide responses from respondents' is enabled."
-          )
-          return
-        }
-      }
-
-      // Check if guestName is provided in payload - if so, force guest mode
-      const forceGuestMode = hasGuestName
-
-      // Determine if current user is guest or logged-in
-      // If guestName is provided in payload, always treat as guest (ignore login status)
-      const isGuest = forceGuestMode || !this.authUser
-
-      // For guests, handle guest name and email
-      let guestName = ""
-      let guestEmail = ""
-      if (isGuest) {
-        const guestNameKey = `${this.event._id}.guestName`
-
-        if (forceGuestMode) {
-          // guestName provided in payload - use it and store in localStorage
-          guestName = payloadGuestName
-          // Store with event._id only (canonical guestName storage key)
-          localStorage[guestNameKey] = guestName
-
-          // If event collects emails, require guestEmail in payload
-          if (this.event.collectEmails) {
-            guestEmail = event.data?.payload?.guestEmail || ""
-            if (!guestEmail || guestEmail.length === 0) {
-              sendPluginError(
-                requestId,
-                command,
-                "Guest email is required because this event collects emails. Please provide 'guestEmail' in the payload."
-              )
-              return
-            }
-
-            // Validate email format
-            if (!validateEmail(guestEmail)) {
-              sendPluginError(
-                requestId,
-                command,
-                `Invalid email format: ${guestEmail}`
-              )
-              return
-            }
-          } else {
-            // Email not required, but get from payload if provided, or from existing response
-            guestEmail =
-              event.data?.payload?.guestEmail ||
-              this.event.responses[guestName]?.email ||
-              ""
-          }
-        } else {
-          // No guestName in payload - use existing flow (check localStorage)
-          const storedGuestName = localStorage[guestNameKey]
-
-          // If no guest name in localStorage, require it from payload
-          if (!storedGuestName || storedGuestName.length === 0) {
-            sendPluginError(
-              requestId,
-              command,
-              "Guest name is required. Please provide 'guestName' in the payload or add your availability through the UI first."
-            )
-            return
-          }
-
-          // Use stored guest name
-          guestName = storedGuestName
-          // Get email from existing response or payload (if provided)
-          guestEmail =
-            event.data?.payload?.guestEmail ||
-            this.event.responses[guestName]?.email ||
-            ""
-        }
-      }
 
       // Get slots from payload - new format: [{ start, end, status }]
       let slots = event.data?.payload?.slots
@@ -1408,17 +1260,7 @@ export default {
           ifNeeded: allIfNeededTimestamps,
         }
 
-        // Set guest flag and user identification
-        if (isGuest) {
-          // For guests: include name and email (already validated and stored above)
-          payload.guest = true
-          payload.name = guestName
-          payload.email = guestEmail
-        } else {
-          // For logged-in users: backend will use session to identify user
-          payload.guest = false
-        }
-
+        // Responses are always attributed to the signed-in user
         await post(`/events/${sanitizedId}/response`, payload)
 
         // Trigger frontend refresh to update UI
@@ -1513,19 +1355,7 @@ export default {
       try {
         // Fetch responses between timeMin and timeMax
 
-        // Try to get guest name from localStorage using long event id only.
-        let guestName = null
-        if (typeof localStorage !== "undefined" && this.event?._id) {
-          const guestNameKey = `${this.event._id}.guestName`
-          guestName = localStorage[guestNameKey]
-        }
-
-        // Build URL with guestName if available
-        let url = `/events/${sanitizedId}/responses?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}`
-        if (guestName && guestName.length > 0) {
-          url += `&guestName=${encodeURIComponent(guestName)}`
-        }
-
+        const url = `/events/${sanitizedId}/responses?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}`
         const responses = await get(url)
 
         // Build response object with all users' slots
@@ -1613,20 +1443,9 @@ export default {
       this.signUpForSlotDialog = true
     },
 
-    async signUpForBlock(guestPayload) {
-      let payload
-
-      if (this.authUser) {
-        payload = {
-          guest: false,
-          signUpBlockIds: [this.currSignUpBlock._id],
-        }
-      } else {
-        payload = {
-          guest: true,
-          signUpBlockIds: [this.currSignUpBlock._id],
-          ...guestPayload,
-        }
+    async signUpForBlock() {
+      const payload = {
+        signUpBlockIds: [this.currSignUpBlock._id],
       }
 
       await post(`/events/${this.event._id}/response`, payload)

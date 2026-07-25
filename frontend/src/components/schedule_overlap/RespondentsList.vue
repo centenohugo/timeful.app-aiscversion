@@ -644,9 +644,7 @@ export default {
     async deleteAvailability(user) {
       try {
         await _delete(`/events/${this.eventId}/response`, {
-          guest: this.isGuest(user),
           userId: user._id,
-          name: user._id,
         })
         this.$emit("refreshEvent")
         this.showInfo("Availability successfully deleted!")
