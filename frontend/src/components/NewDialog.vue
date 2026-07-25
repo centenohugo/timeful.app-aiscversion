@@ -64,17 +64,6 @@
           :folder-id="folderId"
           :contactsPayload="this.type == 'group' ? contactsPayload : {}"
         />
-        <NewSignUp
-          v-if="tab === 'signup'"
-          ref="signup"
-          :key="`signup-${value}`"
-          :event="event"
-          :edit="edit"
-          @input="handleDialogInput"
-          :show-help="!_noTabs"
-          :folder-id="folderId"
-          :contactsPayload="this.type == 'signup' ? contactsPayload : {}"
-        />
       </template>
     </v-card>
   </v-dialog>
@@ -85,7 +74,6 @@ import { isPhone } from "@/utils"
 import NewEvent from "@/components/NewEvent.vue"
 import UnsavedChangesDialog from "@/components/general/UnsavedChangesDialog.vue"
 import NewGroup from "./NewGroup.vue"
-import NewSignUp from "./NewSignUp.vue"
 import { mapState } from "vuex"
 
 export default {
@@ -106,7 +94,6 @@ export default {
   components: {
     NewEvent,
     NewGroup,
-    NewSignUp,
     UnsavedChangesDialog,
   },
 
@@ -115,7 +102,6 @@ export default {
       tab: this.type,
       tabs: [
         { title: "Event", type: "event" },
-        { title: "Sign up form", type: "signup" },
         { title: "Availability group", type: "group" },
       ],
 
@@ -124,7 +110,7 @@ export default {
   },
 
   computed: {
-    ...mapState(["groupsEnabled", "signUpFormEnabled"]),
+    ...mapState(["groupsEnabled"]),
     isPhone() {
       return isPhone(this.$vuetify)
     },
@@ -156,23 +142,10 @@ export default {
     groupsEnabled: {
       immediate: true,
       handler() {
-        this.tabs = [
-          { title: "Event", type: "event" },
-          { title: "Sign up form", type: "signup" },
-        ]
+        this.tabs = [{ title: "Event", type: "event" }]
         if (this.groupsEnabled) {
           this.tabs.push({ title: "Availability group", type: "group" })
         }
-      },
-    },
-    signUpFormEnabled: {
-      immediate: true,
-      handler() {
-        this.tabs = [{ title: "Event", type: "event" }]
-        if (this.signUpFormEnabled) {
-          this.tabs.push({ title: "Sign up form", type: "signup" })
-        }
-        this.tabs.push({ title: "Availability group", type: "group" })
       },
     },
     value: {

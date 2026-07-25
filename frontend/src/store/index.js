@@ -25,7 +25,6 @@ export default new Vuex.Store({
 
     // Feature flags
     groupsEnabled: true,
-    signUpFormEnabled: false,
     daysOnlyEnabled: true,
     overlayAvailabilitiesEnabled: true,
 
@@ -63,9 +62,6 @@ export default new Vuex.Store({
     },
     setGroupsEnabled(state, enabled) {
       state.groupsEnabled = enabled
-    },
-    setSignUpFormEnabled(state, enabled) {
-      state.signUpFormEnabled = enabled
     },
     setDaysOnlyEnabled(state, enabled) {
       state.daysOnlyEnabled = enabled
