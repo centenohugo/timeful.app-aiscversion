@@ -24,7 +24,6 @@ export default new Vuex.Store({
     featureFlagsLoaded: false,
 
     // Feature flags
-    groupsEnabled: true,
     daysOnlyEnabled: true,
     overlayAvailabilitiesEnabled: true,
 
@@ -59,9 +58,6 @@ export default new Vuex.Store({
 
     setFeatureFlagsLoaded(state, loaded) {
       state.featureFlagsLoaded = loaded
-    },
-    setGroupsEnabled(state, enabled) {
-      state.groupsEnabled = enabled
     },
     setDaysOnlyEnabled(state, enabled) {
       state.daysOnlyEnabled = enabled

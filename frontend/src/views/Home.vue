@@ -140,7 +140,7 @@ export default {
   },
 
   computed: {
-    ...mapState(["events", "authUser", "groupsEnabled"]),
+    ...mapState(["events", "authUser"]),
     eventsNotEmpty() {
       return this.events.length > 0
     },

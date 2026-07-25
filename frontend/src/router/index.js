@@ -29,12 +29,6 @@ const routes = [
     props: true,
   },
   {
-    path: "/g/:groupId",
-    name: "group",
-    component: () => import("@/views/Group.vue"),
-    props: true,
-  },
-  {
     path: "/sign-in",
     name: "sign-in",
     component: () => import("@/views/SignIn.vue"),

@@ -40,16 +40,6 @@
         no-tabs
       />
 
-      <!-- Group invitation dialog -->
-      <InvitationDialog
-        v-if="isGroup"
-        v-model="invitationDialog"
-        :group="event"
-        :calendarPermissionGranted="calendarPermissionGranted"
-        @refreshEvent="refreshEvent"
-        @setAvailabilityAutomatically="setAvailabilityAutomatically"
-      ></InvitationDialog>
-
       <!-- Pages Not Visited dialog -->
       <v-dialog
         v-model="pagesNotVisitedDialog"
@@ -440,7 +430,6 @@ import {
 import isWebview from "is-ua-webview"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
 import MarkAvailabilityDialog from "@/components/calendar_permission_dialogs/MarkAvailabilityDialog.vue"
-import InvitationDialog from "@/components/groups/InvitationDialog.vue"
 import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 export default {
@@ -461,7 +450,6 @@ export default {
     NewDialog,
     SignInNotSupportedDialog,
     MarkAvailabilityDialog,
-    InvitationDialog,
     HelpDialog,
     EventDescription,
   },
@@ -474,7 +462,6 @@ export default {
     guestDialog: false,
     signUpForSlotDialog: false,
     editEventDialog: false,
-    invitationDialog: false,
     pagesNotVisitedDialog: false,
     pagesNotVisitedUnderstood: false,
     helpDialog: false,
@@ -1747,10 +1734,6 @@ export default {
         // Put into editing mode if just signed in
         if ((this.fromSignIn || this.editingMode) && !this.isGroup) {
           this.scheduleOverlapComponent.startEditing()
-        }
-
-        if (this.isGroup && !this.userHasResponded) {
-          this.invitationDialog = true
         }
       }
     },
