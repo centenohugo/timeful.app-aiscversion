@@ -15,14 +15,6 @@
             <strong>{{ `${authUser.firstName} ${authUser.lastName}` }}</strong>
           </v-list-item-title>
         </v-list-item>
-        <!-- <v-list-item id="add-team-member-btn" @click="addTeamMember">
-          <v-list-item-title class="tw-flex tw-items-center tw-gap-1">
-            <v-icon class="tw-mr-1" small color="black"
-              >mdi-account-plus</v-icon
-            >
-            Add team member
-          </v-list-item-title>
-        </v-list-item> -->
         <v-list-item id="settings-btn" @click="goToSettings">
           <v-list-item-title class="tw-flex tw-items-center tw-gap-1">
             <v-icon class="tw-mr-1" small color="black">mdi-cog</v-icon>
@@ -38,7 +30,6 @@
         </v-list-item>
       </v-list>
     </v-menu>
-    <TeamsNotReadyDialog v-model="showTeamsNotReadyDialog" />
   </span>
 </template>
 
@@ -46,19 +37,16 @@
 import UserAvatarContent from "@/components/UserAvatarContent"
 import { mapState, mapMutations } from "vuex"
 import { post, isPhone } from "@/utils"
-import TeamsNotReadyDialog from "./TeamsNotReadyDialog.vue"
 
 export default {
   name: "AuthUserMenu",
 
   components: {
     UserAvatarContent,
-    TeamsNotReadyDialog,
   },
 
   data() {
     return {
-      showTeamsNotReadyDialog: false,
     }
   },
 
@@ -81,9 +69,6 @@ export default {
     },
     goToSettings() {
       this.$router.replace({ name: "settings" })
-    },
-    addTeamMember() {
-      this.showTeamsNotReadyDialog = true
     },
   },
 }

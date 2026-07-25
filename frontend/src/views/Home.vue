@@ -34,25 +34,6 @@
         class="tw-rounded-md tw-px-6 tw-py-4 sm:tw-mx-4 sm:tw-bg-[#f3f3f366]"
         v-if="!loading || eventsNotEmpty"
       >
-        <div
-          class="tw-mb-3 tw-text-xl tw-font-medium tw-text-dark-green sm:tw-text-2xl"
-        >
-          Tools
-        </div>
-        <div class="tw-flex tw-flex-row tw-items-center tw-gap-2">
-          <div
-            @click="convertW2M"
-            class="tw-cursor-pointer tw-text-sm tw-font-normal tw-text-dark-gray tw-underline"
-          >
-            Convert When2meet to Timeful
-          </div>
-          <div
-            @click="importTimeful"
-            class="tw-cursor-pointer tw-text-sm tw-font-normal tw-text-dark-gray tw-underline"
-          >
-            Import Timeful Event
-          </div>
-        </div>
       </div>
 
       <div v-if="!loading || eventsNotEmpty" class="tw-flex tw-justify-center">
@@ -78,12 +59,6 @@
       >
         <v-icon>mdi-plus</v-icon>
       </BottomFab>
-
-      <!-- When2meet Import Dialog -->
-      <When2meetImportDialog v-model="showW2MDialog" />
-
-      <!-- Timeful Import Dialog -->
-      <TimefulImportDialog v-model="showImportDialog" />
     </div>
   </span>
 </template>
@@ -92,8 +67,6 @@
 import EventType from "@/components/EventType.vue"
 import BottomFab from "@/components/BottomFab.vue"
 import CreateSpeedDial from "@/components/CreateSpeedDial.vue"
-import When2meetImportDialog from "@/components/When2meetImportDialog.vue"
-import TimefulImportDialog from "@/components/TimefulImportDialog.vue"
 import Dashboard from "@/components/home/Dashboard.vue"
 import { mapState, mapActions, mapMutations } from "vuex"
 import { eventTypes } from "@/constants"
@@ -110,8 +83,6 @@ export default {
     EventType,
     BottomFab,
     CreateSpeedDial,
-    When2meetImportDialog,
-    TimefulImportDialog,
     Dashboard,
   },
 
@@ -125,8 +96,6 @@ export default {
 
   data: () => ({
     loading: true,
-    showW2MDialog: false,
-    showImportDialog: false,
   }),
 
   mounted() {
@@ -159,12 +128,6 @@ export default {
       this.createNew({ eventOnly: false })
     },
     createFolder() {},
-    convertW2M() {
-      this.showW2MDialog = true
-    },
-    importTimeful() {
-      this.showImportDialog = true
-    },
   },
 
   created() {
