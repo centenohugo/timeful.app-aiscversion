@@ -29,45 +29,6 @@
                 <v-spacer />
               </div>
             </v-btn>
-            <v-btn block @click="autofillWithApple" class="tw-bg-white">
-              <div class="tw-flex tw-w-full tw-items-center tw-gap-2">
-                <v-img
-                  class="tw-flex-initial"
-                  width="20"
-                  height="20"
-                  src="@/assets/apple_logo.svg"
-                />
-                <v-spacer />
-                Autofill with Apple Calendar
-                <v-spacer />
-              </div>
-            </v-btn>
-            <v-btn block @click="autofillWithOutlook" class="tw-bg-white">
-              <div class="tw-flex tw-w-full tw-items-center tw-gap-2">
-                <v-img
-                  class="tw-flex-initial"
-                  width="20"
-                  height="20"
-                  src="@/assets/outlook_logo.svg"
-                />
-                <v-spacer />
-                Autofill with Outlook Calendar
-                <v-spacer />
-              </div>
-            </v-btn>
-            <v-btn block @click="autofillWithICS" class="tw-bg-white">
-              <div class="tw-flex tw-w-full tw-items-center tw-gap-2">
-                <v-icon
-                  class="tw-flex-initial"
-                  size="20"
-                >
-                  mdi-calendar-sync
-                </v-icon>
-                <v-spacer />
-                Autofill with ICS Calendar Feed
-                <v-spacer />
-              </div>
-            </v-btn>
             <div class="tw-flex tw-items-center tw-gap-3">
               <v-divider />
               <div
@@ -89,28 +50,6 @@
           @allow="$emit('allowGoogleCalendar')"
         />
       </v-expand-transition>
-      <v-expand-transition>
-        <CreateAccount
-          v-if="state === states.CREATE_ACCOUNT_APPLE"
-          @signInLinkApple="$emit('signInLinkApple')"
-          @back="state = states.CHOICES"
-          @continue="state = states.APPLE_CREDENTIALS"
-        />
-      </v-expand-transition>
-      <v-expand-transition>
-        <AppleCredentials
-          v-if="state === states.APPLE_CREDENTIALS"
-          @back="state = states.CHOICES"
-          @addedAppleCalendar="$emit('addedAppleCalendar')"
-        />
-      </v-expand-transition>
-      <v-expand-transition>
-        <ICSCredentials
-          v-if="state === states.ICS_CREDENTIALS"
-          @back="state = states.CHOICES"
-          @addedCalendar="$emit('addedICSCalendar')"
-        />
-      </v-expand-transition>
     </v-card>
   </v-dialog>
 </template>
@@ -119,9 +58,6 @@
 import { isPhone } from "@/utils"
 import { mapActions, mapState } from "vuex"
 import CalendarPermissionsCard from "./CalendarPermissionsCard"
-import CreateAccount from "./CreateAccount"
-import AppleCredentials from "./AppleCredentials"
-import ICSCredentials from "./ICSCredentials"
 
 export default {
   name: "MarkAvailabilityDialog",
@@ -133,9 +69,6 @@ export default {
 
   components: {
     CalendarPermissionsCard,
-    CreateAccount,
-    AppleCredentials,
-    ICSCredentials,
   },
 
   data() {
@@ -143,9 +76,6 @@ export default {
       states: {
         CHOICES: "choices", // present user with choice of automatic or manual
         GCAL_PERMISSIONS: "gcal_permissions", // present to user the gcal permissions we request
-        CREATE_ACCOUNT_APPLE: "create_account_apple", // present to user the create account dialog
-        APPLE_CREDENTIALS: "apple_credentials", // present to user the apple credentials dialog
-        ICS_CREDENTIALS: "ics_credentials", // present to user the ICS feed URL dialog
       },
       state: this.initialState,
     }
@@ -165,19 +95,6 @@ export default {
     },
     autofillWithGcal() {
       this.state = this.states.GCAL_PERMISSIONS
-    },
-    autofillWithApple() {
-      if (this.authUser) {
-        this.state = this.states.APPLE_CREDENTIALS
-      } else {
-        this.state = this.states.CREATE_ACCOUNT_APPLE
-      }
-    },
-    autofillWithOutlook() {
-      this.$emit("allowOutlookCalendar")
-    },
-    autofillWithICS() {
-      this.state = this.states.ICS_CREDENTIALS
     },
     showChoices() {
       this.state = this.states.CHOICES

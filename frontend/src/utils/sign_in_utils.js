@@ -6,7 +6,6 @@ export const signInGoogle = ({
   state = {},
   selectAccount = false,
   requestCalendarPermission = false,
-  requestContactsPermission = false,
   loginHint = "",
 }) => {
   const clientId = process.env.VUE_APP_GOOGLE_CLIENT_ID
@@ -16,10 +15,6 @@ export const signInGoogle = ({
   if (requestCalendarPermission) {
     scope +=
       "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly "
-  }
-  if (requestContactsPermission) {
-    scope +=
-      "https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/directory.readonly "
   }
   scope = encodeURIComponent(scope)
 
@@ -42,30 +37,5 @@ export const signInGoogle = ({
   }
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&access_type=offline${promptString}${stateString}&include_granted_scopes=true`
-  window.location.href = url
-}
-
-export const signInOutlook = ({
-  state = {},
-  requestCalendarPermission = false,
-}) => {
-  const clientId = process.env.VUE_APP_MICROSOFT_CLIENT_ID
-  const tenant = "common"
-  const redirectUri = encodeURIComponent(`${window.location.origin}/auth`)
-
-  let scope = "offline_access User.Read"
-  if (requestCalendarPermission) {
-    scope += " Calendars.Read"
-  }
-  scope = encodeURIComponent(scope)
-
-  let stateString = ""
-  if (!state) state = {}
-  state.calendarType = calendarTypes.OUTLOOK
-  state.scope = scope
-  state = encodeURIComponent(JSON.stringify(state))
-  stateString = `&state=${state}`
-
-  const url = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&response_mode=query&scope=${scope}${stateString}`
   window.location.href = url
 }

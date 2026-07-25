@@ -4,17 +4,10 @@
       <!-- Mark availability option dialog -->
       <MarkAvailabilityDialog
         v-model="choiceDialog"
-        :initialState="linkApple ? 'create_account_apple' : 'choices'"
-        @signInLinkApple="signInLinkApple"
         @allowGoogleCalendar="
           () => setAvailabilityAutomatically(calendarTypes.GOOGLE)
         "
-        @allowOutlookCalendar="
-          () => setAvailabilityAutomatically(calendarTypes.OUTLOOK)
-        "
         @setAvailabilityManually="setAvailabilityManually"
-        @addedAppleCalendar="addedAppleCalendar"
-        @addedICSCalendar="addedICSCalendar"
       />
 
       <!-- Google sign in not supported dialog -->
@@ -427,7 +420,6 @@ import {
   get,
   post,
   signInGoogle,
-  signInOutlook,
   isPhone,
   processEvent,
   getCalendarEventsMap,
@@ -483,7 +475,6 @@ export default {
     eventId: { type: String, required: true },
     fromSignIn: { type: Boolean, default: false },
     editingMode: { type: Boolean, default: false },
-    linkApple: { type: Boolean, default: false },
     initialTimezone: { type: Object, default: () => ({}) },
     contactsPayload: { type: Object, default: () => ({}) },
   },
@@ -541,10 +532,6 @@ export default {
   mounted() {
     // If coming from enabling contacts, show the dialog. Checks if contactsPayload is not an Observer.
     this.editEventDialog = Object.keys(this.contactsPayload).length > 0
-    // If coming from signing in to link apple calendar, show the mark availability dialog
-    if (this.linkApple) {
-      this.choiceDialog = true
-    }
   },
 
   computed: {
@@ -765,11 +752,7 @@ export default {
           }
         }
 
-        if (calendarType === calendarTypes.GOOGLE) {
-          signInGoogle(signInParams)
-        } else if (calendarType === calendarTypes.OUTLOOK) {
-          signInOutlook(signInParams)
-        }
+        signInGoogle(signInParams)
       }
       this.choiceDialog = false
     },
@@ -880,33 +863,6 @@ export default {
       }, 100)
     },
 
-    /** Sign in with google to link apple calendar */
-    signInLinkApple() {
-      if (isWebview(navigator.userAgent)) {
-        // Show dialog prompting user to use a real browser
-        this.webviewDialog = true
-      } else {
-        signInGoogle({
-          state: {
-            type: authTypes.EVENT_SIGN_IN_LINK_APPLE,
-            eventId: this.eventId,
-          },
-          selectAccount: true,
-        })
-      }
-    },
-    /** Called when user adds apple calendar account */
-    addedAppleCalendar() {
-      this.choiceDialog = false
-      this.scheduleOverlapComponent?.startEditing()
-      this.scheduleOverlapComponent?.setAvailabilityAutomatically()
-    },
-    /** Called when user adds ICS calendar account */
-    addedICSCalendar() {
-      this.choiceDialog = false
-      this.scheduleOverlapComponent?.startEditing()
-      this.scheduleOverlapComponent?.setAvailabilityAutomatically()
-    },
 
     /** Refresh calendar availabilities of everybody in the group */
     async fetchCalendarAvailabilities() {
@@ -1809,7 +1765,7 @@ export default {
         this.$nextTick(() => {
           this.scheduleOverlapComponent = this.$refs.scheduleOverlap
         })
-        document.title = `${this.event.name} - Timeful`
+        document.title = `${this.event.name} - Schedule meetings`
       }
     },
     scheduleOverlapComponent() {

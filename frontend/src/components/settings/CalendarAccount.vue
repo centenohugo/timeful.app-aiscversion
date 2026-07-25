@@ -138,7 +138,7 @@ export default {
       )
     },
     hasSubCalendars() {
-      return this.account.calendarType !== calendarTypes.ICS
+      return true
     },
     accountHasError() {
       const account =
@@ -152,13 +152,7 @@ export default {
       return !(this.toggleState && this.accountHasError)
     },
     reauthenticateBtnText() {
-      if (this.account.calendarType == calendarTypes.GOOGLE) {
-        return "Calendar access not granted, click to reauthenticate"
-      } else if (this.account.calendarType == calendarTypes.APPLE) {
-        return "Error with Apple Calendar account, click to remove"
-      } else if (this.account.calendarType == calendarTypes.OUTLOOK) {
-        return "Error with Outlook Calendar account, click to remove"
-      }
+      return "Calendar access not granted, click to reauthenticate"
     },
   },
 
@@ -177,23 +171,17 @@ export default {
       })
     },
     reauthenticateCalendarAccount() {
-      if (this.account.calendarType == calendarTypes.GOOGLE) {
-        signInGoogle({
-          state: {
-            type: this.toggleState
-              ? authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT
-              : authTypes.ADD_CALENDAR_ACCOUNT,
-            eventId: this.eventId,
-          },
-          requestCalendarPermission: true,
-          selectAccount: false,
-          loginHint: this.account.email,
-        })
-      } else if (this.account.calendarType == calendarTypes.APPLE) {
-        this.openRemoveDialog()
-      } else if (this.account.calendarType == calendarTypes.OUTLOOK) {
-        this.openRemoveDialog()
-      }
+      signInGoogle({
+        state: {
+          type: this.toggleState
+            ? authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT
+            : authTypes.ADD_CALENDAR_ACCOUNT,
+          eventId: this.eventId,
+        },
+        requestCalendarPermission: true,
+        selectAccount: false,
+        loginHint: this.account.email,
+      })
     },
     toggleSubCalendarAccount(enabled, subCalendarId) {
       if (this.syncWithBackend) {

@@ -213,7 +213,7 @@ func noRouteHandler() gin.HandlerFunc {
 			// params["enableStickyFooter"] = true
 
 			if event != nil {
-				title := fmt.Sprintf("%s - Timeful (formerly Schej)", event.Name)
+				title := fmt.Sprintf("%s - Schedule meetings", event.Name)
 				params["title"] = title
 				params["ogTitle"] = title
 

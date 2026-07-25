@@ -103,7 +103,7 @@ export default {
   name: "Home",
 
   metaInfo: {
-    title: "Home - Timeful",
+    title: "Home - Schedule meetings",
   },
 
   components: {

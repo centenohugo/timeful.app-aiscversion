@@ -219,7 +219,6 @@ import {
   isPhone,
   post,
   signInGoogle,
-  signInOutlook,
 } from "@/utils"
 import {
   authTypes,
@@ -345,17 +344,10 @@ export default {
             type: authTypes.GROUP_SIGN_IN,
           }
         }
-        if (calendarType === calendarTypes.GOOGLE) {
-          signInGoogle({
-            state,
-            selectAccount: true,
-          })
-        } else if (calendarType === calendarTypes.OUTLOOK) {
-          signInOutlook({
-            state,
-            selectAccount: true,
-          })
-        }
+        signInGoogle({
+          state,
+          selectAccount: true,
+        })
       }
     },
     setFeatureFlags() {

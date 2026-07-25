@@ -12,22 +12,9 @@ type CalendarProvider interface {
 }
 
 func GetCalendarProvider(calendarAccount models.CalendarAccount) CalendarProvider {
-	switch calendarAccount.CalendarType {
-	case models.GoogleCalendarType:
+	if calendarAccount.CalendarType == models.GoogleCalendarType {
 		return &GoogleCalendar{
 			OAuth2CalendarAuth: *calendarAccount.OAuth2CalendarAuth,
-		}
-	case models.OutlookCalendarType:
-		return &OutlookCalendar{
-			OAuth2CalendarAuth: *calendarAccount.OAuth2CalendarAuth,
-		}
-	case models.AppleCalendarType:
-		return &AppleCalendar{
-			AppleCalendarAuth: *calendarAccount.AppleCalendarAuth,
-		}
-	case models.ICSCalendarType:
-		return &ICSCalendar{
-			ICSCalendarAuth: *calendarAccount.ICSCalendarAuth,
 		}
 	}
 	return nil

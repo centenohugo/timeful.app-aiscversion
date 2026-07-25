@@ -4,7 +4,6 @@ package routes
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -13,15 +12,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"schej.it/server/db"
-	"schej.it/server/errs"
 	"schej.it/server/logger"
 	"schej.it/server/middleware"
 	"schej.it/server/models"
-	"schej.it/server/responses"
 	"schej.it/server/services/auth"
 	"schej.it/server/services/calendar"
-	"schej.it/server/services/contacts"
-	"schej.it/server/services/microsoftgraph"
 	"schej.it/server/utils"
 )
 
@@ -36,13 +31,9 @@ func InitUser(router *gin.RouterGroup) {
 	userRouter.POST("/events/:eventId/set-folder", setEventFolder)
 	userRouter.GET("/calendars", getCalendars)
 	userRouter.POST("/add-google-calendar-account", addGoogleCalendarAccount)
-	userRouter.POST("/add-apple-calendar-account", addAppleCalendarAccount)
-	userRouter.POST("/add-outlook-calendar-account", addOutlookCalendarAccount)
-	userRouter.POST("/add-ics-calendar-account", addICSCalendarAccount)
 	userRouter.DELETE("/remove-calendar-account", removeCalendarAccount)
 	userRouter.POST("/toggle-calendar", toggleCalendar)
 	userRouter.POST("/toggle-sub-calendar", toggleSubCalendar)
-	userRouter.GET("/searchContacts", searchContacts)
 	userRouter.DELETE("", deleteUser)
 }
 
@@ -368,146 +359,10 @@ func addGoogleCalendarAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{})
 }
 
-// @Summary Adds an apple calendar account
-// @Tags user
-// @Accept json
-// @Produce json
-// @Param payload body object{email=string,password=string} true "Object containing the email and app password of the apple account"
-// @Success 200
-// @Router /user/add-apple-calendar-account [post]
-func addAppleCalendarAccount(c *gin.Context) {
-	payload := struct {
-		Email    string `json:"email" binding:"required"`
-		Password string `json:"password" binding:"required"`
-	}{}
-	if err := c.BindJSON(&payload); err != nil {
-		return
-	}
-
-	encryptedPassword, err := utils.Encrypt(payload.Password)
-	if err != nil {
-		logger.StdErr.Panicln(err)
-	}
-
-	auth := &models.AppleCalendarAuth{
-		Email:    payload.Email,
-		Password: encryptedPassword,
-	}
-
-	// Check if the provided credentials are valid
-	calendarProvider := calendar.AppleCalendar{
-		AppleCalendarAuth: *auth,
-	}
-	_, err = calendarProvider.GetCalendarList()
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.InvalidCredentials})
-		return
-	}
-
-	addCalendarAccount(c, addCalendarAccountArgs{
-		calendarType:      models.AppleCalendarType,
-		appleCalendarAuth: auth,
-		email:             payload.Email,
-		picture:           "",
-	})
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
-// @Summary Adds a new outlook calendar account
-// @Tags user
-// @Accept json
-// @Produce json
-// @Param payload body object{code=string,scope=string} true "Object containing the Outlook authorization code and scope"
-// @Success 200
-// @Router /user/add-outlook-calendar-account [post]
-func addOutlookCalendarAccount(c *gin.Context) {
-	payload := struct {
-		Code  string `json:"code" binding:"required"`
-		Scope string `json:"scope" binding:"required"`
-	}{}
-	if err := c.BindJSON(&payload); err != nil {
-		return
-	}
-
-	// Get auth user
-	authUser := utils.GetAuthUser(c)
-
-	// Get tokens
-	tokens := auth.GetTokensFromAuthCode(payload.Code, payload.Scope, utils.GetOrigin(c), models.OutlookCalendarType)
-
-	// Get access token expire time
-	accessTokenExpireDate := utils.GetAccessTokenExpireDate(tokens.ExpiresIn)
-
-	// Construct calendarAuth object
-	calendarAuth := &models.OAuth2CalendarAuth{
-		AccessToken:           tokens.AccessToken,
-		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
-		RefreshToken:          tokens.RefreshToken,
-		Scope:                 payload.Scope,
-	}
-
-	// Get user info
-	userInfo := microsoftgraph.GetUserInfo(authUser, calendarAuth)
-
-	addCalendarAccount(c, addCalendarAccountArgs{
-		calendarType:       models.OutlookCalendarType,
-		oAuth2CalendarAuth: calendarAuth,
-		email:              userInfo.Email,
-		picture:            "",
-	})
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
-// @Summary Adds an ICS calendar account
-// @Tags user
-// @Accept json
-// @Produce json
-// @Param payload body object{feedUrl=string,label=string} true "Object containing the feed URL and label of the ICS calendar"
-// @Success 200
-// @Router /user/add-ics-calendar-account [post]
-func addICSCalendarAccount(c *gin.Context) {
-	payload := struct {
-		FeedURL string `json:"feedUrl" binding:"required"`
-		Label   string `json:"label" binding:"required"`
-	}{}
-	if err := c.BindJSON(&payload); err != nil {
-		return
-	}
-
-	auth := &models.ICSCalendarAuth{
-		FeedURL: payload.FeedURL,
-		Label:   payload.Label,
-	}
-
-	// Check if the provided feed URL is reachable
-	calendarProvider := calendar.ICSCalendar{
-		ICSCalendarAuth: *auth,
-	}
-	_, err := calendarProvider.GetCalendarList()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, responses.Error{Error: "Invalid ICS feed URL"})
-		return
-	}
-
-	addCalendarAccount(c, addCalendarAccountArgs{
-		calendarType:    models.ICSCalendarType,
-		icsCalendarAuth: auth,
-		// ICS feeds don't have an email, so we use the label instead
-		email:   payload.Label,
-		picture: "",
-	})
-
-	c.JSON(http.StatusOK, gin.H{})
-}
-
 // Implements the shared functionality for adding a calendar account
 type addCalendarAccountArgs struct {
 	calendarType       models.CalendarType
 	oAuth2CalendarAuth *models.OAuth2CalendarAuth
-	appleCalendarAuth  *models.AppleCalendarAuth
-	icsCalendarAuth    *models.ICSCalendarAuth
 	email              string
 	picture            string
 }
@@ -516,12 +371,7 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 	// Get auth user
 	authUser := utils.GetAuthUser(c)
 
-	ident := args.email
-	if args.calendarType != models.ICSCalendarType {
-		ident = utils.NormalizeEmail(args.email)
-	} else {
-		ident = strings.TrimSpace(args.email)
-	}
+	ident := utils.NormalizeEmail(args.email)
 
 	// Create calendar account object
 	calendarAccount := models.CalendarAccount{
@@ -531,16 +381,7 @@ func addCalendarAccount(c *gin.Context, args addCalendarAccountArgs) {
 		Picture: args.picture,
 		Enabled: utils.TruePtr(), // Workaround to pass a boolean pointer
 	}
-	switch args.calendarType {
-	case models.GoogleCalendarType:
-		calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
-	case models.OutlookCalendarType:
-		calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
-	case models.AppleCalendarType:
-		calendarAccount.AppleCalendarAuth = args.appleCalendarAuth
-	case models.ICSCalendarType:
-		calendarAccount.ICSCalendarAuth = args.icsCalendarAuth
-	}
+	calendarAccount.OAuth2CalendarAuth = args.oAuth2CalendarAuth
 	canonicalKey := utils.GetCalendarAccountKey(ident, args.calendarType)
 	legacyKey := utils.ActualCalendarAccountMapKey(authUser, ident, args.calendarType)
 
@@ -701,33 +542,6 @@ func toggleSubCalendar(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{})
-}
-
-// @Summary Searches the user's contacts based on the given query
-// @Tags user
-// @Produce json
-// @Param query query string true "Query to search for"
-// @Success 200 {object} []models.User
-// @Router /user/searchContacts [get]
-func searchContacts(c *gin.Context) {
-	// Bind query parameters
-	payload := struct {
-		Query string `form:"query"`
-	}{}
-	if err := c.Bind(&payload); err != nil {
-		return
-	}
-
-	userInterface, _ := c.Get("authUser")
-	user := userInterface.(*models.User)
-
-	contacts, googleError := contacts.SearchContacts(user, payload.Query)
-	if googleError != nil {
-		c.JSON(googleError.Code, responses.Error{Error: *googleError})
-		return
-	}
-
-	c.JSON(http.StatusOK, contacts)
 }
 
 // @Summary Deletes the currently signed in user

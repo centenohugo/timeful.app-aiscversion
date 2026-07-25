@@ -42,9 +42,6 @@ export const timeTypes = Object.freeze({
 
 export const calendarTypes = Object.freeze({
   GOOGLE: "google",
-  APPLE: "apple",
-  OUTLOOK: "outlook",
-  ICS: "ics"
 })
 
 export const timeslotDurations = Object.freeze({
