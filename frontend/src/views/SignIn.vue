@@ -10,9 +10,10 @@
             alt="Timeful Logo"
             class="shrink tw-cursor-pointer"
             contain
-            src="@/assets/timeful_logo_with_text.png"
+            src="@/assets/aisc-logo.png"
             transition="fade-transition"
-            width="160"
+            width="96"
+            height="96"
           />
         </router-link>
       </div>
