@@ -1,0 +1,82 @@
+# Compose file for deploying via Coolify.
+#
+# Differences from compose.yaml (which stays the way to run this locally):
+#   - No env_file: server/.env is gitignored and does not exist in a git checkout,
+#     so every value comes from environment variables set in the Coolify UI
+#   - No published ports: Coolify's proxy reaches the server over the internal
+#     network and terminates TLS itself. SERVICE_FQDN_SERVER_3002 tells Coolify
+#     which service and port the domain routes to
+name: timeful
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      target: builder
+      args:
+        # Baked into the bundle at build time, so changing it needs a rebuild
+        VUE_APP_POSTHOG_API_KEY: ${VUE_APP_POSTHOG_API_KEY:-}
+        VUE_APP_GOOGLE_CLIENT_ID: ${CLIENT_ID:-}
+        VUE_APP_MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+    volumes:
+      - frontend_dist:/app/dist
+    command:
+      [
+        "sh",
+        "-c",
+        "rm -rf /app/dist/* && cp -r /build/* /app/dist/ && echo 'Frontend assets copied' && tail -f /dev/null",
+      ]
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    expose:
+      - "3002"
+    environment:
+      # Coolify replaces this with the domain you set for this service
+      - SERVICE_FQDN_SERVER_3002
+      - MONGODB_URI=mongodb://mongo:27017
+      - GIN_MODE=release
+      - BASE_URL=${BASE_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      # Optional integrations, left empty unless configured in Coolify
+      - MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-}
+      - MICROSOFT_CLIENT_SECRET=${MICROSOFT_CLIENT_SECRET:-}
+      - ANALYTICS_USERNAME=${ANALYTICS_USERNAME:-}
+      - ANALYTICS_PASSWORD=${ANALYTICS_PASSWORD:-}
+    volumes:
+      - frontend_dist:/app/frontend/dist:ro
+      - server_logs:/app/logs
+    depends_on:
+      mongo:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  mongo_data:
+  frontend_dist:
+  server_logs:
