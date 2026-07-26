@@ -188,9 +188,7 @@
                 class="tw-absolute tw-right-0 tw-transition-none group-hover:tw-opacity-100 group-[&:has(.email-hover-target:hover)]:!tw-opacity-0"
                 :class="isPhone ? 'tw-opacity-100' : 'tw-opacity-0'"
               >
-                <template
-                  v-if="isPhone && (isGuest(user) || (isOwner && !isGroup))"
-                >
+                <template v-if="isPhone && isOwner && !isGroup">
                   <v-menu right offset-x>
                     <template v-slot:activator="{ on, attrs }">
                       <v-btn icon v-on="on" v-bind="attrs">
@@ -199,7 +197,7 @@
                     </template>
                     <v-list class="tw-py-1" dense>
                       <v-list-item
-                        v-if="isGuest(user)"
+                        v-if="isGuest(user) && isOwner"
                         @click="$emit('editGuestAvailability', user._id)"
                       >
                         <v-list-item-title class="tw-flex tw-items-center">
@@ -225,7 +223,7 @@
                 </template>
                 <template v-else>
                   <v-btn
-                    v-if="isGuest(user)"
+                    v-if="isGuest(user) && isOwner"
                     small
                     icon
                     class="tw-bg-white"
@@ -285,28 +283,15 @@
         </div>
       </div>
       <template v-if="!isPhone">
+        <!-- Only the owner can respond for somebody else; everybody else responds as themselves -->
         <v-btn
-          v-if="
-            !isGroup &&
-            (authUser || guestAddedAvailability) &&
-            (!event.blindAvailabilityEnabled || isOwner)
-          "
+          v-if="!isGroup && isOwner"
           text
           color="primary"
           class="-tw-ml-2 tw-mb-4 tw-w-min tw-px-2"
-          @click="
-            () => {
-              if (authUser) {
-                $emit('addAvailabilityAsGuest')
-              } else {
-                $emit('addAvailability')
-              }
-            }
-          "
+          @click="$emit('addAvailabilityAsGuest')"
         >
-          {{
-            authUser ? "+ Add guest availability" : "+ Add availability"
-          }}</v-btn
+          + Add availability for someone else</v-btn
         >
         <v-switch
           v-if="respondents.length > 1"
@@ -393,27 +378,13 @@
     </v-switch>
 
     <v-btn
-      v-if="
-        !maxHeight &&
-        isPhone &&
-        !isGroup &&
-        (authUser || guestAddedAvailability) &&
-        (!event.blindAvailabilityEnabled || isOwner)
-      "
+      v-if="!maxHeight && isPhone && !isGroup && isOwner"
       text
       color="primary"
       class="-tw-ml-2 tw-mt-4 tw-w-min tw-px-2"
-      @click="
-        () => {
-          if (authUser) {
-            $emit('addAvailabilityAsGuest')
-          } else {
-            $emit('addAvailability')
-          }
-        }
-      "
+      @click="$emit('addAvailabilityAsGuest')"
     >
-      {{ authUser ? "+ Add guest availability" : "+ Add availability" }}</v-btn
+      + Add availability for someone else</v-btn
     >
   </div>
 </template>
@@ -459,8 +430,6 @@ export default {
     hideIfNeeded: { type: Boolean, required: true },
     startCalendarOnMonday: { type: Boolean, default: false },
     showEventOptions: { type: Boolean, required: true },
-    guestAddedAvailability: { type: Boolean, required: true },
-    addingAvailabilityAsGuest: { type: Boolean, required: true },
   },
 
   data() {

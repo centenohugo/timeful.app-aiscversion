@@ -829,8 +829,6 @@
                   :hide-if-needed.sync="hideIfNeeded"
                   :start-calendar-on-monday.sync="startCalendarOnMonday"
                   :show-event-options="showEventOptions"
-                  :guestAddedAvailability="guestAddedAvailability"
-                  :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
                   @toggleShowEventOptions="toggleShowEventOptions"
                   @addAvailability="$emit('addAvailability')"
                   @addAvailabilityAsGuest="$emit('addAvailabilityAsGuest')"
@@ -950,8 +948,6 @@
                   :show-best-times.sync="showBestTimes"
                   :hide-if-needed.sync="hideIfNeeded"
                   :show-event-options="showEventOptions"
-                  :guestAddedAvailability="guestAddedAvailability"
-                  :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
                   @toggleShowEventOptions="toggleShowEventOptions"
                   @addAvailability="$emit('addAvailability')"
                   @addAvailabilityAsGuest="$emit('addAvailabilityAsGuest')"
@@ -2817,7 +2813,12 @@ export default {
       }
       this.availabilityAnimEnabled = false
     },
-    async submitAvailability(guestPayload = { name: "", email: "" }) {
+    /**
+     * Submits the availability currently being edited. Pass a proxyPayload with a name
+     * to save it on behalf of somebody without an account instead of the current user;
+     * the server only honours that for the event owner.
+     */
+    async submitAvailability(proxyPayload = { name: "", email: "" }) {
       let payload = {}
 
       let type = ""
@@ -2841,19 +2842,15 @@ export default {
         payload.ifNeeded = this.ifNeededArray
       }
 
-      await post(`/events/${this.event._id}/response`, payload)
-
-      // Update analytics
-      const addedIfNeededTimes = this.ifNeededArray.length > 0
-      if (this.authUser) {
-        if (this.authUser._id in this.parsedResponses) {
-        } else {
-        }
-      } else {
-        if (guestPayload.name in this.parsedResponses) {
-        } else {
+      // Attribute the response to the named person rather than the signed in owner
+      if (proxyPayload.name?.length > 0) {
+        payload.proxyName = proxyPayload.name
+        if (proxyPayload.email?.length > 0) {
+          payload.proxyEmail = proxyPayload.email
         }
       }
+
+      await post(`/events/${this.event._id}/response`, payload)
 
       this.refreshEvent()
       this.unsavedChanges = false
@@ -2905,8 +2902,12 @@ export default {
       return true
     },
 
-    async deleteAvailability() {
-      const payload = { userId: this.authUser._id }
+    /**
+     * Deletes an availability response. Pass the name of a proxy respondent to delete
+     * theirs; with no argument it deletes the current user's own response.
+     */
+    async deleteAvailability(userId = "") {
+      const payload = { userId: userId.length > 0 ? userId : this.authUser._id }
       await _delete(`/events/${this.event._id}/response`, payload)
       this.availability = new Set()
       if (this.isGroup) this.$router.replace({ name: "home" })
