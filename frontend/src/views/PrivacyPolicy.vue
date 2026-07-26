@@ -24,8 +24,9 @@
         <a href="mailto:aisc.asoc@uc3m.es">aisc.asoc@uc3m.es</a>
       </p>
       <p>
-        This application is a deployment, operated by AISC, of the open-source
-        scheduling tool Timeful (formerly Schej.it). AISC is the controller of
+        This application, Meet AISC, is a deployment, operated by AISC, of the
+        open-source scheduling tool Timeful (formerly Schej.it). AISC is the
+        controller of
         the personal data processed through this deployment; the original
         authors of the software do not receive your data.
       </p>

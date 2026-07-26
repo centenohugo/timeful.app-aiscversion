@@ -44,7 +44,7 @@
           <v-card-text>
             <p>
               <span class="tw-font-bold"
-                >You haven't filled out all pages of this Timeful.</span
+                >You haven't filled out all pages of this event.</span
               >
               Availability for the pages you didn't visit won't be saved.
             </p>

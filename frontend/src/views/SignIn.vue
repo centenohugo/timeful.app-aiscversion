@@ -7,7 +7,7 @@
       <div class="tw-mb-8 tw-flex tw-justify-center">
         <router-link :to="{ name: 'landing' }">
           <v-img
-            alt="Timeful Logo"
+            alt="Meet AISC Logo"
             class="shrink tw-cursor-pointer"
             contain
             src="@/assets/aisc-logo.png"
