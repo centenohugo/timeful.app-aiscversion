@@ -97,9 +97,12 @@ func main() {
 	router.Use(gin.Recovery())
 
 	// Cors
+	// Self hosted instances serve the frontend from the same origin as the API, so
+	// only local development needs an entry here by default. Set CORS_ORIGINS to
+	// this deployment's public origin if you serve the frontend separately.
 	corsOrigins := os.Getenv("CORS_ORIGINS")
 	if corsOrigins == "" {
-		corsOrigins = "https://www.schej.it,https://schej.it,https://www.timeful.app,https://timeful.app,http://localhost:8080"
+		corsOrigins = "http://localhost:8080"
 	}
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     strings.Split(corsOrigins, ","),
