@@ -54,8 +54,7 @@
           <div class="tw-text-black">
             We do not store your calendar data anywhere on our servers, and we
             only fetch your calendar events for the time frame you specify in
-            order to display your calendar events while you fill out your
-            availability.
+            order to display your calendar events.
           </div>
           <v-btn
             outlined
@@ -68,61 +67,38 @@
         <CalendarAccounts></CalendarAccounts>
       </div>
 
-      <!-- Permissions Section -->
+      <!-- About Section -->
       <div class="tw-flex tw-flex-col tw-gap-5">
         <div
           class="tw-text-xl tw-font-medium tw-text-dark-green sm:tw-text-2xl"
         >
-          Permissions
+          About this page
         </div>
         <div
-          class="tw-flex tw-flex-col tw-rounded-md tw-border-[1px] tw-border-light-gray-stroke"
+          class="tw-flex tw-flex-col-reverse tw-items-start tw-gap-5 sm:tw-flex-row sm:tw-items-center sm:tw-gap-10"
         >
-          <div
-            class="tw-flex tw-w-full tw-flex-row tw-border-b-[1px] tw-border-light-gray-stroke"
+          <div class="tw-max-w-2xl tw-text-black">
+            This is a self-hosted fork of
+            <a href="https://timeful.app" target="_blank" rel="noopener"
+              >Timeful</a
+            >, the open source group scheduling app. This version is maintained
+            by Hugo Centeno Sanz —
+            <a href="https://hcenteno.com" target="_blank" rel="noopener"
+              >hcenteno.com</a
+            >.
+          </div>
+          <a
+            href="https://hcenteno.com"
+            target="_blank"
+            rel="noopener"
+            class="tw-shrink-0"
           >
-            <div
-              v-for="(h, i) in heading"
-              :class="`tw-border-r-[${i == heading.length - 1 ? '0' : '1'}px]`"
-              class="tw-w-1/3 tw-border-light-gray-stroke tw-p-4 tw-font-bold"
-            >
-              {{ h }}
-            </div>
-          </div>
-
-          <div
-            v-for="(c, j) in content"
-            :class="`tw-border-b-[${j == content.length - 1 ? '0' : '1'}px]`"
-            class="tw-flex tw-w-full tw-flex-row tw-border-light-gray-stroke"
-          >
-            <div
-              v-for="(text, k) in c"
-              :class="`tw-border-r-[${k == c.length - 1 ? '0' : '1'}px]`"
-              class="tw-w-1/3 tw-border-light-gray-stroke tw-p-4"
-            >
-              {{ text }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Question Section -->
-      <div class="tw-flex tw-flex-col tw-gap-5">
-        <div
-          class="tw-text-xl tw-font-medium tw-text-dark-green sm:tw-text-2xl"
-        >
-          Have a question?
-        </div>
-        <div class="tw-flex tw-flex-col tw-gap-5 sm:tw-flex-row sm:tw-gap-28">
-          <div class="tw-text-black">
-            Email us at
-            <a
-              href="mailto:contact@timeful.app"
-              class="tw-text-black tw-underline"
-              >contact@timeful.app</a
-            >
-            with any questions!
-          </div>
+            <img
+              src="@/assets/hcenteno_doodle.svg"
+              alt="Hugo Centeno Sanz"
+              class="tw-size-20 sm:tw-size-24"
+            />
+          </a>
         </div>
       </div>
 
@@ -189,20 +165,6 @@ export default {
     dialog: false,
     deleteDialog: false,
     deleteValidateEmail: "",
-    heading: ["Permission", "Purpose", "Requested When"],
-    content: [
-      [
-        "View all calendar events",
-        "Allows us to display the names/times of your calendar events",
-        "User tries to input availability automatically with Google Calendar",
-      ],
-      [
-        "View all calendars subscribed to",
-        "Allows us to display calendar events on all your calendars instead of just your primary calendar",
-        "User tries to input availability automatically with Google Calendar",
-      ],
-    ],
-
     // Profile settings
     firstName: "",
     lastName: "",
