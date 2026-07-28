@@ -30,12 +30,6 @@
         <Dashboard v-if="!loading || eventsNotEmpty" />
       </v-fade-transition>
 
-      <div
-        class="tw-rounded-md tw-px-6 tw-py-4 sm:tw-mx-4 sm:tw-bg-[#f3f3f366]"
-        v-if="!loading || eventsNotEmpty"
-      >
-      </div>
-
       <div v-if="!loading || eventsNotEmpty" class="tw-flex tw-justify-center">
         <div
           class="animate-boba tw-size-48 tw-bg-contain tw-bg-no-repeat sm:tw-size-48"
