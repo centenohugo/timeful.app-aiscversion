@@ -13,6 +13,14 @@
       <!-- Google sign in not supported dialog -->
       <SignInNotSupportedDialog v-model="webviewDialog" />
 
+      <!-- Name dialog for availability the owner adds on somebody else's behalf -->
+      <ProxyAvailabilityDialog
+        v-model="proxyDialog"
+        @submit="handleProxyDialogSubmit"
+        :event="event"
+        :respondents="Object.keys(event.responses)"
+      />
+
       <!-- Join sign up slot dialog-->
       <SignUpForSlotDialog
         v-if="currSignUpBlock"
@@ -44,7 +52,7 @@
           <v-card-text>
             <p>
               <span class="tw-font-bold"
-                >You haven't filled out all pages of this Timeful.</span
+                >You haven't filled out all pages of this event.</span
               >
               Availability for the pages you didn't visit won't be saved.
             </p>
@@ -205,7 +213,7 @@
                 >
                   <template v-if="!isEditing">
                     <v-btn
-                      v-if="!isGroup && !authUser && selectedGuestRespondent"
+                      v-if="!isGroup && isOwner && selectedGuestRespondent"
                       min-width="10.25rem"
                       class="tw-bg-green tw-text-white tw-transition-opacity"
                       :style="{ opacity: availabilityBtnOpacity }"
@@ -269,7 +277,9 @@
             :weekOffset.sync="weekOffset"
             :curGuestId="curGuestId"
             :initial-timezone="initialTimezone"
+            :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
             @addAvailability="addAvailability"
+            @addAvailabilityAsGuest="addAvailabilityAsGuest"
             @refreshEvent="refreshEvent"
             @highlightAvailabilityBtn="highlightAvailabilityBtn"
             @deleteAvailability="deleteAvailability"
@@ -322,7 +332,7 @@
             >
             <v-spacer />
             <v-btn
-              v-if="!isGroup && !authUser && selectedGuestRespondent"
+              v-if="!isGroup && isOwner && selectedGuestRespondent"
               class="tw-bg-white tw-text-green tw-transition-opacity"
               :style="{ opacity: availabilityBtnOpacity }"
               @click="editGuestAvailability"
@@ -407,6 +417,7 @@ dayjs.extend(timezonePlugin)
 
 import NewDialog from "@/components/NewDialog.vue"
 import ScheduleOverlap from "@/components/schedule_overlap/ScheduleOverlap.vue"
+import ProxyAvailabilityDialog from "@/components/ProxyAvailabilityDialog.vue"
 import SignUpForSlotDialog from "@/components/sign_up_form/SignUpForSlotDialog.vue"
 import {
   errors,
@@ -433,6 +444,7 @@ export default {
   },
 
   components: {
+    ProxyAvailabilityDialog,
     SignUpForSlotDialog,
     ScheduleOverlap,
     NewDialog,
@@ -447,6 +459,7 @@ export default {
 
     choiceDialog: false,
     webviewDialog: false,
+    proxyDialog: false,
     signUpForSlotDialog: false,
     editEventDialog: false,
     pagesNotVisitedDialog: false,
@@ -460,8 +473,9 @@ export default {
     scheduleOverlapComponentLoaded: false,
 
 
-    curGuestId: "", // Id of the current guest being edited
+    curGuestId: "", // Name of the proxy respondent currently being edited
     calendarPermissionGranted: true,
+    addingAvailabilityAsGuest: false, // Whether the owner is adding availability for somebody else
 
     weekOffset: 0,
 
@@ -532,6 +546,9 @@ export default {
     },
     selectedGuestRespondent() {
       return this.scheduleOverlapComponent?.selectedGuestRespondent
+    },
+    isOwner() {
+      return this.authUser?._id === this.event.ownerId
     },
     numResponses() {
       return this.scheduleOverlapComponent?.respondents.length
@@ -607,6 +624,11 @@ export default {
         this.choiceDialog = true
       }
     },
+    /** Start filling in availability on behalf of somebody without an account */
+    addAvailabilityAsGuest() {
+      this.addingAvailabilityAsGuest = true
+      this.setAvailabilityManually()
+    },
     cancelEditing() {
       /* Cancels editing and resets availability to previous */
       if (!this.scheduleOverlapComponent) return
@@ -616,6 +638,7 @@ export default {
       else this.scheduleOverlapComponent.resetSignUpForm()
       this.scheduleOverlapComponent.stopEditing()
       this.curGuestId = ""
+      this.addingAvailabilityAsGuest = false
     },
     copyLink() {
       /* Copies event link to clipboard */
@@ -627,7 +650,14 @@ export default {
     async deleteAvailability() {
       if (!this.scheduleOverlapComponent) return
 
-      await this.scheduleOverlapComponent.deleteAvailability()
+      if (this.curGuestId) {
+        // Editing somebody else's response, so delete theirs rather than our own
+        await this.scheduleOverlapComponent.deleteAvailability(this.curGuestId)
+        this.curGuestId = ""
+      } else {
+        await this.scheduleOverlapComponent.deleteAvailability()
+      }
+      this.addingAvailabilityAsGuest = false
 
       this.showInfo(this.isGroup ? "Left group!" : "Availability deleted!")
       this.scheduleOverlapComponent.stopEditing()
@@ -714,7 +744,7 @@ export default {
     },
 
     async saveChanges(ignorePagesNotVisited = false) {
-      /* Shows guest dialog if not signed in, otherwise saves auth user's availability */
+      /* Saves the auth user's availability, or a proxy respondent's if editing theirs */
       if (!this.scheduleOverlapComponent) return
 
       // If user hasn't responded and they haven't gone to the next page, show pages not visited dialog
@@ -726,6 +756,20 @@ export default {
         this.scheduleOverlapComponent.hasPages
       ) {
         this.pagesNotVisitedDialog = true
+        return
+      }
+
+      // Availability being filled in for somebody else: save it under their name.
+      // Editing an existing response already knows the name, a new one has to ask.
+      if (this.addingAvailabilityAsGuest || this.curGuestId.length > 0) {
+        if (this.curGuestId.length > 0) {
+          await this.saveChangesAsProxy({
+            name: this.curGuestId,
+            email: this.event.responses[this.curGuestId]?.email,
+          })
+        } else {
+          this.proxyDialog = true
+        }
         return
       }
 
@@ -742,6 +786,23 @@ export default {
         this.showInfo("Changes saved!")
         this.scheduleOverlapComponent.stopEditing()
       }
+    },
+    /** Submits the edited availability on behalf of the named person */
+    async saveChangesAsProxy(payload) {
+      if (!this.scheduleOverlapComponent) return
+      if (!payload.name?.length) return
+
+      await this.scheduleOverlapComponent.submitAvailability(payload)
+
+      this.showInfo("Changes saved!")
+      this.scheduleOverlapComponent.resetCurUserAvailability()
+      this.scheduleOverlapComponent.stopEditing()
+      this.proxyDialog = false
+      this.curGuestId = ""
+      this.addingAvailabilityAsGuest = false
+    },
+    handleProxyDialogSubmit(proxyPayload) {
+      this.saveChangesAsProxy(proxyPayload)
     },
     scheduleEvent() {
       this.scheduleOverlapComponent?.scheduleEvent()

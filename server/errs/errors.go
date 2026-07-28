@@ -18,6 +18,8 @@ const (
 	EventNotGroup         string = "event-not-group"
 	InvalidCredentials    string = "invalid-credentials"
 	InvalidIdToken        string = "invalid-id-token"
+	InvalidProxyName      string = "invalid-proxy-name"
+	ProxyNotAllowed       string = "proxy-not-allowed"
 )
 
 type GoogleAPIError struct {

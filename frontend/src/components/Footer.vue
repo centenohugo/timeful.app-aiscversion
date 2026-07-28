@@ -3,7 +3,7 @@
     <div class="tw-mx-auto tw-max-w-7xl">
       <div class="tw-mb-3 tw-flex tw-items-center">
         <v-img
-          alt="Timeful Logo"
+          alt="Meet AISC Logo"
           class="shrink"
           contain
           src="@/assets/aisc-logo.png"

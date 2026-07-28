@@ -34,7 +34,7 @@ export default {
         return "Betterwhen2meet Logo"
       }
 
-      return "Timeful Logo"
+      return "Meet AISC Logo"
     },
     src() {
       // The AISC logo is a roughly square mark (676x680), unlike the old wide
