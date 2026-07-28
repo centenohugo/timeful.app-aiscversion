@@ -181,3 +181,16 @@ func GenerateShortEventId(eventId primitive.ObjectID) string {
 	return id
 }
 
+// ProxyNameCollidesWithUser reports whether name would collide with a signed-in user's
+// response. Responses are keyed by userId: a real user's key is their ObjectID hex,
+// while a proxy response is keyed by the name the owner typed. A name that happens to
+// be an existing user's ObjectID would therefore overwrite that user's own response.
+func ProxyNameCollidesWithUser(name string) bool {
+	objectId, err := primitive.ObjectIDFromHex(name)
+	if err != nil {
+		// Not an ObjectID, so it cannot address a real user's response
+		return false
+	}
+
+	return GetUserById(objectId.Hex()) != nil
+}

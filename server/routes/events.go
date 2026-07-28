@@ -539,13 +539,20 @@ func getResponses(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param eventId path string true "Event ID"
-// @Param payload body object{availability=[]string,ifNeeded=[]string,useCalendarAvailability=bool,enabledCalendars=map[string][]string,manualAvailability=map[string][]string,calendarOptions=models.CalendarOptions,signUpBlockIds=[]string} true "Object containing info about the event response to update"
+// @Param payload body object{availability=[]string,ifNeeded=[]string,proxyName=string,proxyEmail=string,useCalendarAvailability=bool,enabledCalendars=map[string][]string,manualAvailability=map[string][]string,calendarOptions=models.CalendarOptions,signUpBlockIds=[]string} true "Object containing info about the event response to update"
 // @Success 200
+// @Failure 400 {object} responses.Error "Invalid proxy name, or proxy responses not supported for this event"
+// @Failure 403 {object} responses.Error "Only the event owner can respond on somebody else's behalf"
 // @Router /events/{eventId}/response [post]
 func updateEventResponse(c *gin.Context) {
 	payload := struct {
 		Availability []primitive.DateTime `json:"availability"`
 		IfNeeded     []primitive.DateTime `json:"ifNeeded"`
+
+		// Owner-only: fill in availability on behalf of somebody without an account.
+		// When set, the response is stored under this name instead of the caller's id.
+		ProxyName  string `json:"proxyName"`
+		ProxyEmail string `json:"proxyEmail"`
 
 		// Calendar availability variables for Availability Groups feature
 		UseCalendarAvailability *bool                                        `json:"useCalendarAvailability"`
@@ -568,12 +575,53 @@ func updateEventResponse(c *gin.Context) {
 
 	eventResponses := db.GetEventResponses(event.Id.Hex())
 
+	proxyName := strings.TrimSpace(payload.ProxyName)
+	if proxyName != "" {
+		// Responding on somebody else's behalf is limited to the event owner, so an
+		// attendee can't create or overwrite responses that aren't theirs.
+		if event.OwnerId.Hex() != utils.GetAuthUser(c).Id.Hex() {
+			c.JSON(http.StatusForbidden, responses.Error{Error: errs.UserNotEventOwner})
+			return
+		}
+
+		// Groups and sign up forms key their responses to real accounts (attendee
+		// lists, calendar syncing, slot claims), so there is nothing to attribute a
+		// nameless proxy response to.
+		if utils.Coalesce(event.IsSignUpForm) || event.Type == models.GROUP {
+			c.JSON(http.StatusBadRequest, responses.Error{Error: errs.ProxyNotAllowed})
+			return
+		}
+
+		if db.ProxyNameCollidesWithUser(proxyName) {
+			c.JSON(http.StatusBadRequest, responses.Error{Error: errs.InvalidProxyName})
+			return
+		}
+	}
+
 	var userIdString string
 	var userHasResponded bool
 	if !utils.Coalesce(event.IsSignUpForm) {
 		// AuthRequired guarantees a signed-in user, so responses are always attributed
 		var response models.Response
-		{
+		if proxyName != "" {
+			// Keyed by name rather than an id: this respondent has no account
+			userIdString = proxyName
+
+			response = models.Response{
+				Name:         proxyName,
+				Email:        strings.TrimSpace(payload.ProxyEmail),
+				Availability: payload.Availability,
+				IfNeeded:     payload.IfNeeded,
+			}
+
+			// The whole response document is replaced below, so an edit that doesn't
+			// resend the email would otherwise drop the stored one
+			if response.Email == "" {
+				if _, existing := findResponse(eventResponses, proxyName); existing != nil {
+					response.Email = existing.Email
+				}
+			}
+		} else {
 			authUser := utils.GetAuthUser(c)
 			userIdString = authUser.Id.Hex()
 			userId := authUser.Id
