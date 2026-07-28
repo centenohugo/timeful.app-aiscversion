@@ -15,15 +15,12 @@
 
 <img src="./.github/assets/images/hero.jpg" alt="Timeful hero" />
 
-Timeful is a scheduling platform helps you find the best time for a group to meet. It is a free availability poll that is easy to use and integrates with your calendar.
+Forked from [Timeful](timeful.app), meet AISC serves as a scheduling platform to find availability to meet between members of AISC (other uses can be given).
 
-Hosted version of the site: https://timeful.app
+The app was simplified to meet the requirements of AISC, as well it was branded.
 
-Built with [Vue 2](https://github.com/vuejs/vue), [MongoDB](https://github.com/mongodb/mongo), [Go](https://github.com/golang/go), and [TailwindCSS](https://github.com/tailwindlabs/tailwindcss)
+Hosted version of the site: https://meet.aiscmadrid.com
 
-## Demo
-
-[![demo video](http://markdown-videos-api.jorgenkh.no/youtube/vFkBC8BrkOk)](https://www.youtube.com/watch?v=vFkBC8BrkOk)
 
 ## Features
 
@@ -38,13 +35,3 @@ Built with [Vue 2](https://github.com/vuejs/vue), [MongoDB](https://github.com/m
 - Availability groups - stay up to date with people's real-time calendar availability
 - Export availability as CSV
 - Only show responses to event creator
-
-## Plugin API
-
-Read these docs to design your own browser plugins to get + set availability on Timeful events programmatically!
-
-[Plugin API Docs](./PLUGIN_API_README.md)
-
-## Self-hosting
-
-See the [Deployment Guide](./DEPLOYMENT.md) for Docker Compose and NixOS setup instructions.
