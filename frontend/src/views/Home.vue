@@ -70,10 +70,6 @@ export default {
   },
 
   props: {
-    contactsPayload: {
-      type: Object,
-      default: () => ({}),
-    },
     openNewGroup: { type: Boolean, default: false },
   },
 
@@ -82,10 +78,8 @@ export default {
   }),
 
   mounted() {
-    // If coming from enabling contacts, show the dialog. Checks if contactsPayload is not an Observer.
     this.setNewDialogOptions({
-      show: Object.keys(this.contactsPayload).length > 0 || this.openNewGroup,
-      contactsPayload: this.contactsPayload,
+      show: this.openNewGroup,
       openNewGroup: this.openNewGroup,
       eventOnly: false,
     })

@@ -187,10 +187,10 @@
                   <v-btn depressed v-show="startOnMonday"> Sun </v-btn>
                 </v-btn-toggle>
               </v-input>
-              <v-checkbox class="tw-mt-2" v-model="startOnMonday" hide-details>
+              <v-checkbox class="tw-mt-2" v-model="startOnSunday" hide-details>
                 <template v-slot:label>
                   <span class="tw-text-sm tw-text-very-dark-gray">
-                    Start on Monday
+                    Start on Sunday
                   </span>
                 </template>
               </v-checkbox>
@@ -234,187 +234,6 @@
           </template>
         </v-checkbox>
 
-        <div class="tw-flex tw-flex-col tw-gap-2">
-          <ExpandableSection
-            v-if="authUser && !guestEvent"
-            label="Email reminders"
-            v-model="showEmailReminders"
-            :auto-scroll="dialog"
-          >
-            <div class="tw-flex tw-flex-col tw-gap-5 tw-pt-2">
-              <EmailInput
-                v-show="authUser"
-                ref="emailInput"
-                @requestContactsAccess="requestContactsAccess"
-                labelColor="tw-text-very-dark-gray"
-                :addedEmails="addedEmails"
-                @update:emails="(newEmails) => (emails = newEmails)"
-              >
-                <template v-slot:header>
-                  <div class="tw-flex tw-gap-1">
-                    <div class="tw-text-very-dark-gray">
-                      Remind people to fill out the event
-                    </div>
-
-                    <v-tooltip
-                      top
-                      content-class="tw-bg-very-dark-gray tw-shadow-lg tw-opacity-100 tw-py-4"
-                    >
-                      <template v-slot:activator="{ on, attrs }">
-                        <v-icon small v-bind="attrs" v-on="on"
-                          >mdi-information-outline
-                        </v-icon>
-                      </template>
-                      <div>
-                        Reminder emails will be sent the day of event
-                        creation,<br />one day after, and three days after. You
-                        will also receive <br />an email when everybody has
-                        filled out the event.
-                      </div>
-                    </v-tooltip>
-                  </div>
-                </template>
-              </EmailInput>
-            </div>
-          </ExpandableSection>
-
-          <ExpandableSection
-            v-model="showAdvancedOptions"
-            label="Advanced options"
-            :auto-scroll="dialog"
-          >
-            <div class="tw-flex tw-flex-col tw-gap-5 tw-pt-2">
-              <div v-if="!edit" class="tw-flex tw-items-center tw-gap-x-2">
-                <div class="tw-text-sm tw-text-black">Time increment:</div>
-                <v-select
-                  v-model="timeIncrement"
-                  dense
-                  class="-tw-mt-[2px] tw-w-24 tw-grow-0 tw-text-sm"
-                  menu-props="auto"
-                  hide-details
-                  :items="timeIncrementItems"
-                ></v-select>
-              </div>
-              <v-checkbox
-                v-if="authUser && !guestEvent"
-                v-model="collectEmails"
-                hide-details
-              >
-                <template v-slot:label>
-                  <span class="tw-text-sm tw-text-black">
-                    Collect respondents' email addresses
-                  </span>
-                </template>
-                <template v-slot:message="{ key, message }">
-                  <div
-                    class="-tw-mt-1 tw-ml-[32px] tw-text-xs tw-text-dark-gray"
-                  >
-                    {{ message }}
-                  </div>
-                </template>
-              </v-checkbox>
-              <v-checkbox
-                v-else-if="!guestEvent"
-                disabled
-                messages="test"
-                off-icon="mdi-checkbox-blank-off-outline"
-              >
-                <template v-slot:label>
-                  <span class="tw-text-sm"
-                    >Collect respondents' email addresses</span
-                  >
-                </template>
-                <template v-slot:message="{ key, message }">
-                  <div
-                    class="tw-pointer-events-auto -tw-mt-1 tw-ml-[32px] tw-text-xs tw-text-dark-gray"
-                  >
-                    <span class="tw-font-medium tw-text-very-dark-gray"
-                      ><a @click="$emit('signIn')">Sign in</a>
-                      to use this feature
-                    </span>
-                  </div>
-                </template>
-              </v-checkbox>
-              <v-checkbox
-                v-if="authUser && !guestEvent"
-                v-model="blindAvailabilityEnabled"
-                messages="Only show responses to event creator"
-              >
-                <template v-slot:label>
-                  <span class="tw-text-sm tw-text-black">
-                    Hide responses from respondents
-                  </span>
-                </template>
-                <template v-slot:message="{ key, message }">
-                  <div
-                    class="-tw-mt-1 tw-ml-[32px] tw-text-xs tw-text-dark-gray"
-                  >
-                    {{ message }}
-                  </div>
-                </template>
-              </v-checkbox>
-              <v-checkbox
-                v-else-if="!guestEvent"
-                disabled
-                messages="Only show responses to event creator. "
-                off-icon="mdi-checkbox-blank-off-outline"
-              >
-                <template v-slot:label>
-                  <span class="tw-text-sm"
-                    >Hide responses from respondents</span
-                  >
-                </template>
-                <template v-slot:message="{ key, message }">
-                  <div
-                    class="tw-pointer-events-auto -tw-mt-1 tw-ml-[32px] tw-text-xs tw-text-dark-gray"
-                  >
-                    {{ message }}
-                    <span class="tw-font-medium tw-text-very-dark-gray"
-                      ><a @click="$emit('signIn')">Sign in</a>
-                      to use this feature
-                    </span>
-                  </div>
-                </template>
-              </v-checkbox>
-              <v-checkbox
-                v-if="authUser && !guestEvent"
-                v-model="sendEmailAfterXResponsesEnabled"
-                hide-details
-              >
-                <template v-slot:label>
-                  <div
-                    :class="!sendEmailAfterXResponsesEnabled && 'tw-opacity-50'"
-                    class="tw-flex tw-items-center tw-gap-x-2 tw-text-sm tw-text-very-dark-gray"
-                  >
-                    <div>Email me after</div>
-                    <v-text-field
-                      v-model="sendEmailAfterXResponses"
-                      @click="
-                        (e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
-                        }
-                      "
-                      :disabled="!sendEmailAfterXResponsesEnabled"
-                      dense
-                      class="email-me-after-text-field -tw-mt-[2px] tw-w-10"
-                      menu-props="auto"
-                      hide-details
-                      type="number"
-                      min="1"
-                    ></v-text-field>
-                    <div>responses</div>
-                  </div>
-                </template>
-              </v-checkbox>
-              <TimezoneSelector
-                v-model="timezone"
-                label="Timezone"
-                @input="trackTimezoneChange"
-              />
-            </div>
-          </ExpandableSection>
-        </div>
       </v-form>
     </v-card-text>
     <v-card-actions class="tw-relative tw-px-4 sm:tw-px-8">
@@ -448,14 +267,8 @@
   </v-card>
 </template>
 
-<style>
-.email-me-after-text-field input {
-  padding: 0px !important;
-}
-</style>
-
 <script>
-import { eventTypes, dayIndexToDayString, authTypes } from "@/constants"
+import { eventTypes, dayIndexToDayString } from "@/constants"
 import {
   post,
   put,
@@ -463,16 +276,13 @@ import {
   dateToTimeNum,
   getISODateString,
   isPhone,
-  signInGoogle,
   getDateWithTimezone,
   getTimeOptions,
   addEventToCreatedList,
   prefersStartOnMonday,
 } from "@/utils"
 import { mapActions, mapState } from "vuex"
-import TimezoneSelector from "./schedule_overlap/TimezoneSelector.vue"
 import HelpDialog from "./HelpDialog.vue"
-import EmailInput from "./event/EmailInput.vue"
 import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
 import AlertText from "@/components/AlertText.vue"
@@ -481,7 +291,6 @@ import { guestUserId } from "@/constants"
 import dayjs from "dayjs"
 import utcPlugin from "dayjs/plugin/utc"
 import timezonePlugin from "dayjs/plugin/timezone"
-import ExpandableSection from "./ExpandableSection.vue"
 dayjs.extend(utcPlugin)
 dayjs.extend(timezonePlugin)
 
@@ -494,19 +303,15 @@ export default {
     event: { type: Object },
     edit: { type: Boolean, default: false },
     dialog: { type: Boolean, default: true },
-    contactsPayload: { type: Object, default: () => ({}) },
     showHelp: { type: Boolean, default: false },
     folderId: { type: String, default: null },
     isDialogOpen: { type: Boolean, default: false },
   },
 
   components: {
-    TimezoneSelector,
     HelpDialog,
-    EmailInput,
     DatePicker,
     SlideToggle,
-    ExpandableSection,
     AlertText,
     OverflowGradient,
   },
@@ -536,16 +341,12 @@ export default {
     }),
     selectedDateOption: "Specific dates",
 
-    // Email reminders
-    showEmailReminders: false,
-    emails: [], // For email reminders
-
-    // Advanced options
-    showAdvancedOptions: false,
+    // No longer exposed in the form, but still round-tripped so editing an
+    // event doesn't clear whatever it was created with (editEvent overwrites
+    // these unconditionally with whatever the payload contains)
     timeIncrement: 15,
     collectEmails: false,
     blindAvailabilityEnabled: false,
-    timezone: {},
     sendEmailAfterXResponsesEnabled: false,
     sendEmailAfterXResponses: 3,
 
@@ -558,24 +359,6 @@ export default {
   }),
 
   mounted() {
-    if (Object.keys(this.contactsPayload).length > 0) {
-      this.toggleEmailReminders(true)
-
-      /** Get previously filled out data after enabling contacts  */
-      this.name = this.contactsPayload.name
-      this.startTime = this.contactsPayload.startTime
-      this.endTime = this.contactsPayload.endTime
-      this.daysOnly = this.contactsPayload.daysOnly
-      this.selectedDateOption = this.contactsPayload.selectedDateOption
-      this.selectedDaysOfWeek = this.contactsPayload.selectedDaysOfWeek
-      this.selectedDays = this.contactsPayload.selectedDays
-      this.notificationsEnabled = this.contactsPayload.notificationsEnabled
-      this.timezone = this.contactsPayload.timezone
-      this.specificTimesEnabled = this.contactsPayload.specificTimesEnabled
-
-      this.$refs.form.resetValidation()
-    }
-
     this.$nextTick(() => {
       this.hasMounted = true
     })
@@ -583,6 +366,15 @@ export default {
 
   computed: {
     ...mapState(["authUser", "daysOnlyEnabled"]),
+    /** Inverse of startOnMonday, since the checkbox is the opt out */
+    startOnSunday: {
+      get() {
+        return !this.startOnMonday
+      },
+      set(val) {
+        this.startOnMonday = !val
+      },
+    },
     nameRules() {
       return [(v) => !!v || "Event name is required"]
     },
@@ -592,12 +384,19 @@ export default {
           selectedDays.length > 0 || "Please select at least one day",
       ]
     },
-    addedEmails() {
-      if (Object.keys(this.contactsPayload).length > 0)
-        return this.contactsPayload.emails
-      return this.event && this.event.remindees
-        ? this.event.remindees.map((r) => r.email)
-        : []
+    /**
+     * IANA timezone the selected days / times are interpreted in. Mirrors how
+     * TimezoneSelector resolves it, since the form no longer shows the picker.
+     */
+    eventTimezone() {
+      if (localStorage["timezone"]) {
+        try {
+          return JSON.parse(localStorage["timezone"]).value
+        } catch {
+          // Fall back to the local timezone below
+        }
+      }
+      return dayjs.tz.guess()
     },
     times() {
       return getTimeOptions()
@@ -620,13 +419,6 @@ export default {
     guestEvent() {
       return this.event && this.event.ownerId == guestUserId
     },
-    timeIncrementItems() {
-      return [
-        { text: "15 min", value: 15 },
-        { text: "30 min", value: 30 },
-        { text: "60 min", value: 60 },
-      ]
-    },
   },
 
   methods: {
@@ -644,8 +436,6 @@ export default {
       this.notificationsEnabled = true
       this.daysOnly = false
       this.selectedDateOption = "Specific dates"
-      this.emails = []
-      this.showAdvancedOptions = false
       this.blindAvailabilityEnabled = false
       this.sendEmailAfterXResponsesEnabled = false
       this.sendEmailAfterXResponses = 3
@@ -684,7 +474,7 @@ export default {
           for (const day of this.selectedDays) {
             const date = dayjs.tz(
               `${day} ${startTimeString}`,
-              this.timezone.value
+              this.eventTimezone
             )
             dates.push(date.toDate())
           }
@@ -701,14 +491,14 @@ export default {
             const day = dayIndexToDayString[dayIndex]
             const date = dayjs.tz(
               `${day} ${startTimeString}`,
-              this.timezone.value
+              this.eventTimezone
             )
 
             // The reference dates (dayIndexToDayString) are from June 2018, which may have
             // a different DST offset than the current date. Adjust so the stored UTC time
             // corresponds to the user's current timezone offset.
             const refOffset = date.utcOffset()
-            const currentOffset = dayjs().tz(this.timezone.value).utcOffset()
+            const currentOffset = dayjs().tz(this.eventTimezone).utcOffset()
             dates.push(date.subtract(currentOffset - refOffset, 'minutes').toDate())
           }
         }
@@ -726,7 +516,6 @@ export default {
           : this.notificationsEnabled,
         blindAvailabilityEnabled: this.blindAvailabilityEnabled,
         daysOnly: this.daysOnly,
-        remindees: this.emails,
         type: type,
         sendEmailAfterXResponses: this.sendEmailAfterXResponsesEnabled
           ? parseInt(this.sendEmailAfterXResponses)
@@ -747,7 +536,6 @@ export default {
               name: "event",
               params: {
                 eventId: shortId ?? eventId,
-                initialTimezone: this.timezone,
               },
             })
 
@@ -793,48 +581,6 @@ export default {
       }
     },
 
-    toggleEmailReminders(delayed = false) {
-      if (delayed) {
-        setTimeout(
-          () => (this.showEmailReminders = !this.showEmailReminders),
-          300
-        )
-      } else {
-        this.showEmailReminders = !this.showEmailReminders
-      }
-    },
-
-    /** Redirects user to oauth page requesting access to the user's contacts */
-    requestContactsAccess({ emails }) {
-      const payload = {
-        emails,
-        name: this.name,
-        startTime: this.startTime,
-        endTime: this.endTime,
-        daysOnly: this.daysOnly,
-        selectedDays: this.selectedDays,
-        selectedDaysOfWeek: this.selectedDaysOfWeek,
-        selectedDateOption: this.selectedDateOption,
-        notificationsEnabled: this.notificationsEnabled,
-        timezone: this.timezone,
-      }
-      signInGoogle({
-        state: {
-          type: authTypes.EVENT_CONTACTS,
-          eventId: this.event ? this.event.shortId ?? this.event._id : "",
-          openNewGroup: false,
-          payload,
-        },
-        requestContactsPermission: true,
-      })
-    },
-    /** Update state based on the contactsPayload after granting contacts access */
-    contactsAccessGranted({ curScheduledEvent, ...data }) {
-      this.curScheduledEvent = curScheduledEvent
-      this.$refs.confirmDetailsDialog?.setData(data)
-      this.confirmDetailsDialog = true
-    },
-
     /** Populates the form fields based on this.event */
     updateFieldsFromEvent() {
       if (this.event) {
@@ -851,7 +597,7 @@ export default {
         this.blindAvailabilityEnabled = this.event.blindAvailabilityEnabled
         this.daysOnly = this.event.daysOnly
         this.specificTimesEnabled = this.event.hasSpecificTimes
-        this.startOnMonday = this.event.startOnMonday
+        this.startOnMonday = !!this.event.startOnMonday
         this.collectEmails = this.event.collectEmails
         this.timeIncrement = this.event.timeIncrement ?? 15
 
@@ -902,7 +648,6 @@ export default {
     },
     resetToEventData() {
       this.updateFieldsFromEvent()
-      this.$refs.emailInput.reset()
     },
     setInitialEventData() {
       this.initialEventData = {
@@ -915,11 +660,7 @@ export default {
         selectedDaysOfWeek: this.selectedDaysOfWeek,
         selectedDateOption: this.selectedDateOption,
         notificationsEnabled: this.notificationsEnabled,
-        emails: [...this.emails],
-        blindAvailabilityEnabled: this.blindAvailabilityEnabled,
-        sendEmailAfterXResponsesEnabled: this.sendEmailAfterXResponsesEnabled,
-        sendEmailAfterXResponses: this.sendEmailAfterXResponses,
-        timeIncrement: this.timeIncrement,
+        startOnMonday: this.startOnMonday,
       }
     },
     hasEventBeenEdited() {
@@ -937,17 +678,8 @@ export default {
         this.daysOnly !== this.initialEventData.daysOnly ||
         this.notificationsEnabled !==
           this.initialEventData.notificationsEnabled ||
-        JSON.stringify(this.emails) !==
-          JSON.stringify(this.initialEventData.emails) ||
-        this.blindAvailabilityEnabled !==
-          this.initialEventData.blindAvailabilityEnabled ||
-        this.sendEmailAfterXResponsesEnabled !==
-          this.initialEventData.sendEmailAfterXResponsesEnabled ||
-        this.sendEmailAfterXResponses !==
-          this.initialEventData.sendEmailAfterXResponses
+        this.startOnMonday !== this.initialEventData.startOnMonday
       )
-    },
-    trackTimezoneChange(newTimezone) {
     },
   },
 
