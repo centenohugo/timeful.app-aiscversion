@@ -35,7 +35,6 @@
         v-model="editEventDialog"
         :type="eventType"
         :event="event"
-        :contactsPayload="contactsPayload"
         edit
         no-tabs
       />
@@ -440,7 +439,6 @@ export default {
     fromSignIn: { type: Boolean, default: false },
     editingMode: { type: Boolean, default: false },
     initialTimezone: { type: Object, default: () => ({}) },
-    contactsPayload: { type: Object, default: () => ({}) },
   },
 
   components: {
@@ -490,11 +488,6 @@ export default {
   }),
 
   beforeMount() {},
-
-  mounted() {
-    // If coming from enabling contacts, show the dialog. Checks if contactsPayload is not an Observer.
-    this.editEventDialog = Object.keys(this.contactsPayload).length > 0
-  },
 
   computed: {
     ...mapState(["authUser", "events"]),
@@ -1538,7 +1531,6 @@ export default {
               groupId: this.eventId,
               initialTimezone: this.initialTimezone,
               fromSignIn: this.fromSignIn,
-              contactsPayload: this.contactsPayload,
             },
           })
         }
@@ -1550,7 +1542,6 @@ export default {
               eventId: this.eventId,
               initialTimezone: this.initialTimezone,
               fromSignIn: this.fromSignIn,
-              contactsPayload: this.contactsPayload,
             },
           })
         }

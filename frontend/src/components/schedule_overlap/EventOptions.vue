@@ -46,17 +46,17 @@
         </template>
       </v-switch>
 
-      <!-- Start on monday -->
+      <!-- Start on sunday -->
       <v-switch
         v-if="event.daysOnly"
         inset
-        id="start-calendar-on-monday-toggle"
-        :input-value="startCalendarOnMonday"
-        @change="(val) => $emit('update:startCalendarOnMonday', !!val)"
+        id="start-calendar-on-sunday-toggle"
+        :input-value="!startCalendarOnMonday"
+        @change="(val) => $emit('update:startCalendarOnMonday', !val)"
         hide-details
       >
         <template v-slot:label>
-          <div class="tw-text-sm tw-text-black">Start on Monday</div>
+          <div class="tw-text-sm tw-text-black">Start on Sunday</div>
         </template>
       </v-switch>
     </div>

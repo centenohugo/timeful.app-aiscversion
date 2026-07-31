@@ -96,25 +96,6 @@ export default {
             authUser = await get("/user/profile")
             this.setAuthUser(authUser)
             break
-          case authTypes.EVENT_CONTACTS:
-            if (state.eventId == "") {
-              this.$router.replace({
-                name: "home",
-                params: {
-                  contactsPayload: state.payload,
-                  openNewGroup: state.openNewGroup,
-                },
-              })
-            } else {
-              this.$router.replace({
-                name: "event",
-                params: {
-                  eventId: state.eventId,
-                  contactsPayload: state.payload,
-                },
-              })
-            }
-            break
           default:
             this.$router.replace({ name: "home" })
         }

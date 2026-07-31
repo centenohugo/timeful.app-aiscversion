@@ -48,7 +48,6 @@
           :edit="edit"
           @input="handleDialogInput"
           :is-dialog-open="value"
-          :contactsPayload="this.type == 'event' ? contactsPayload : {}"
           :show-help="!_noTabs"
           :folder-id="folderId"
           @signIn="$emit('signIn')"
@@ -74,7 +73,6 @@ export default {
     type: { type: String, default: "event" }, // Either "event" or "group"
     event: { type: Object },
     edit: { type: Boolean, default: false },
-    contactsPayload: { type: Object, default: () => ({}) },
     noTabs: { type: Boolean, default: false },
     folderId: { type: String, default: null },
   },

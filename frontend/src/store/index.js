@@ -30,7 +30,6 @@ export default new Vuex.Store({
     // New dialog
     newDialogOptions: {
       show: false,
-      contactsPayload: {},
       openNewGroup: false,
       eventOnly: false,
       folderId: null,
@@ -93,17 +92,10 @@ export default new Vuex.Store({
 
     setNewDialogOptions(
       state,
-      {
-        show = false,
-        contactsPayload = {},
-        openNewGroup = false,
-        eventOnly = true,
-        folderId = null,
-      }
+      { show = false, openNewGroup = false, eventOnly = true, folderId = null }
     ) {
       state.newDialogOptions = {
         show,
-        contactsPayload,
         openNewGroup,
         eventOnly,
         folderId,
@@ -129,7 +121,6 @@ export default new Vuex.Store({
     createNew({ commit }, { eventOnly = false, folderId = null }) {
       commit("setNewDialogOptions", {
         show: true,
-        contactsPayload: {},
         openNewGroup: false,
         eventOnly: eventOnly,
         folderId: folderId,
