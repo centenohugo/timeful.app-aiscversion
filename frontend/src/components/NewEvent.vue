@@ -198,42 +198,6 @@
           </v-expand-transition>
         </div>
 
-        <v-checkbox
-          v-if="!guestEvent && authUser"
-          v-model="notificationsEnabled"
-          hide-details
-          class="tw-mt-2"
-        >
-          <template v-slot:label>
-            <span class="tw-text-sm tw-text-very-dark-gray"
-              >Email me each time someone joins my event</span
-            >
-          </template>
-        </v-checkbox>
-        <v-checkbox
-          v-else-if="!guestEvent"
-          disabled
-          messages="test"
-          off-icon="mdi-checkbox-blank-off-outline"
-          class="tw-mt-2"
-        >
-          <template v-slot:label>
-            <span class="tw-text-sm"
-              >Email me each time someone joins my event</span
-            >
-          </template>
-          <template v-slot:message="{ key, message }">
-            <div
-              class="tw-pointer-events-auto -tw-mt-1 tw-ml-[32px] tw-text-xs tw-text-dark-gray"
-            >
-              <span class="tw-font-medium tw-text-very-dark-gray"
-                ><a @click="$emit('signIn')">Sign in</a>
-                to use this feature
-              </span>
-            </div>
-          </template>
-        </v-checkbox>
-
       </v-form>
     </v-card-text>
     <v-card-actions class="tw-relative tw-px-4 sm:tw-px-8">
@@ -287,7 +251,6 @@ import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
 import AlertText from "@/components/AlertText.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
-import { guestUserId } from "@/constants"
 import dayjs from "dayjs"
 import utcPlugin from "dayjs/plugin/utc"
 import timezonePlugin from "dayjs/plugin/timezone"
@@ -326,7 +289,6 @@ export default {
     selectedDays: [],
     selectedDaysOfWeek: [],
     startOnMonday: prefersStartOnMonday(),
-    notificationsEnabled: true,
 
     daysOnly: false,
     daysOnlyOptions: Object.freeze([
@@ -346,6 +308,7 @@ export default {
     // these unconditionally with whatever the payload contains)
     timeIncrement: 15,
     collectEmails: false,
+    notificationsEnabled: false,
     blindAvailabilityEnabled: false,
     sendEmailAfterXResponsesEnabled: false,
     sendEmailAfterXResponses: 3,
@@ -416,9 +379,6 @@ export default {
     isPhone() {
       return isPhone(this.$vuetify)
     },
-    guestEvent() {
-      return this.event && this.event.ownerId == guestUserId
-    },
   },
 
   methods: {
@@ -433,7 +393,7 @@ export default {
       this.specificTimesEnabled = false
       this.selectedDays = []
       this.selectedDaysOfWeek = []
-      this.notificationsEnabled = true
+      this.notificationsEnabled = false
       this.daysOnly = false
       this.selectedDateOption = "Specific dates"
       this.blindAvailabilityEnabled = false
@@ -511,9 +471,7 @@ export default {
         duration: duration,
         dates: dates,
         hasSpecificTimes: this.specificTimesEnabled,
-        notificationsEnabled: !this.authUser
-          ? false
-          : this.notificationsEnabled,
+        notificationsEnabled: this.authUser && this.notificationsEnabled,
         blindAvailabilityEnabled: this.blindAvailabilityEnabled,
         daysOnly: this.daysOnly,
         type: type,
@@ -593,7 +551,7 @@ export default {
         this.startTime %= 24
 
         this.endTime = (this.startTime + this.event.duration) % 24
-        this.notificationsEnabled = this.event.notificationsEnabled
+        this.notificationsEnabled = !!this.event.notificationsEnabled
         this.blindAvailabilityEnabled = this.event.blindAvailabilityEnabled
         this.daysOnly = this.event.daysOnly
         this.specificTimesEnabled = this.event.hasSpecificTimes
@@ -659,7 +617,6 @@ export default {
         selectedDays: this.selectedDays,
         selectedDaysOfWeek: this.selectedDaysOfWeek,
         selectedDateOption: this.selectedDateOption,
-        notificationsEnabled: this.notificationsEnabled,
         startOnMonday: this.startOnMonday,
       }
     },
@@ -676,8 +633,6 @@ export default {
         JSON.stringify(this.selectedDaysOfWeek) !==
           JSON.stringify(this.initialEventData.selectedDaysOfWeek) ||
         this.daysOnly !== this.initialEventData.daysOnly ||
-        this.notificationsEnabled !==
-          this.initialEventData.notificationsEnabled ||
         this.startOnMonday !== this.initialEventData.startOnMonday
       )
     },
