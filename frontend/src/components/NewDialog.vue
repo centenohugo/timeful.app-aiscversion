@@ -50,7 +50,6 @@
           :is-dialog-open="value"
           :show-help="!_noTabs"
           :folder-id="folderId"
-          @signIn="$emit('signIn')"
         />
       </template>
     </v-card>

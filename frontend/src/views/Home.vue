@@ -1,7 +1,9 @@
 <template>
-  <span>
+  <!-- Fills the router view so the footer sits at the bottom of the viewport
+       even when the dashboard is short -->
+  <div class="tw-flex tw-min-h-full tw-flex-col">
     <div
-      class="tw-mx-auto tw-mb-24 tw-mt-4 tw-max-w-6xl tw-space-y-4 sm:tw-mb-12 sm:tw-mt-7"
+      class="tw-mx-auto tw-mt-4 tw-w-full tw-max-w-6xl tw-space-y-4 sm:tw-mt-7"
     >
       <div
         v-if="loading && !eventsNotEmpty"
@@ -19,31 +21,25 @@
         <Dashboard v-if="!loading || eventsNotEmpty" />
       </v-fade-transition>
 
-      <div
-        class="tw-rounded-md tw-px-6 tw-py-4 sm:tw-mx-4 sm:tw-bg-[#f3f3f366]"
-        v-if="!loading || eventsNotEmpty"
-      >
-      </div>
-
-      <div class="tw-flex tw-flex-col tw-items-center tw-justify-between">
-        <router-link
-          class="tw-text-xs tw-font-medium tw-text-gray"
-          :to="{ name: 'privacy-policy' }"
-        >
-          Privacy Policy
-        </router-link>
-      </div>
-
-      <!-- FAB -->
-      <BottomFab
-        v-if="isPhone"
-        id="create-event-btn"
-        @click="() => _createNew()"
-      >
-        <v-icon>mdi-plus</v-icon>
-      </BottomFab>
     </div>
-  </span>
+
+    <!-- Footer, pushed to the bottom on short pages -->
+    <div
+      class="tw-mt-auto tw-flex tw-flex-col tw-items-center tw-justify-between tw-pb-24 tw-pt-8 sm:tw-pb-12"
+    >
+      <router-link
+        class="tw-text-xs tw-font-medium tw-text-gray"
+        :to="{ name: 'privacy-policy' }"
+      >
+        Privacy Policy
+      </router-link>
+    </div>
+
+    <!-- FAB -->
+    <BottomFab v-if="isPhone" id="create-event-btn" @click="() => _createNew()">
+      <v-icon>mdi-plus</v-icon>
+    </BottomFab>
+  </div>
 </template>
 
 <script>
