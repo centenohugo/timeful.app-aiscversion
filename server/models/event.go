@@ -91,6 +91,11 @@ type Event struct {
 	ScheduledEvent  *CalendarEvent `json:"scheduledEvent" bson:"scheduledEvent,omitempty"`
 	CalendarEventId string         `json:"calendarEventId" bson:"calendarEventId,omitempty"`
 
+	// Signed in users the owner has given permission to schedule this event. They see the
+	// "Schedule event" button and, like the owner, can see respondents' email addresses
+	// (needed to populate the calendar invite). Only the owner can edit this list.
+	Schedulers []primitive.ObjectID `json:"schedulers" bson:"schedulers,omitempty"`
+
 	// Remindees
 	Remindees *[]Remindee `json:"remindees" bson:"remindees,omitempty"`
 
