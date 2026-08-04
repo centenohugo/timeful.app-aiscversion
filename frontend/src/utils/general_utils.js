@@ -2,7 +2,7 @@
   General utils
 */
 
-import { eventTypes } from "@/constants"
+import { eventTypes, guestUserId } from "@/constants"
 import { dateToDowDate, dateToTimeNum } from "./date_utils"
 import Color from "color"
 
@@ -102,6 +102,33 @@ export const processEvent = (event) => {
   event.startTime = dateToTimeNum(new Date(startDate), true)
   event.endTime = (event.startTime + event.duration) % 24
 }
+
+/**
+ * Whether the event was created by somebody who wasn't signed in. These events have no
+ * real owner, so everybody can already schedule them and there is nobody to delegate.
+ */
+export const isGuestEvent = (event) => event?.ownerId === guestUserId
+
+/** Whether the given user id owns the event */
+export const isEventOwner = (event, userId) =>
+  !!userId && event?.ownerId === userId
+
+/**
+ * Whether the owner has given this user permission to schedule the event. Note this is an
+ * affordance, not an enforced permission — the scheduling action itself is a redirect to
+ * Google Calendar that anybody could construct by hand.
+ */
+export const isEventScheduler = (event, userId) =>
+  !!userId && (event?.schedulers ?? []).includes(userId)
+
+/**
+ * Whether the given user may schedule the event. Guest events stay open to everybody,
+ * matching the behaviour that shipped before delegation existed.
+ */
+export const canScheduleEvent = (event, userId) =>
+  isGuestEvent(event) ||
+  isEventOwner(event, userId) ||
+  isEventScheduler(event, userId)
 
 /** Checks whether email is a valid email */
 export const validateEmail = (email) => {

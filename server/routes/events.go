@@ -47,6 +47,10 @@ func InitEvents(router *gin.RouterGroup) {
 	eventRouter.DELETE("/:eventId", middleware.AuthRequired(), deleteEvent)
 	eventRouter.POST("/:eventId/duplicate", middleware.AuthRequired(), duplicateEvent)
 	eventRouter.POST("/:eventId/archive", middleware.AuthRequired(), archiveEvent)
+
+	// Only the event owner may delegate the ability to schedule the event.
+	eventRouter.POST("/:eventId/schedulers", middleware.AuthRequired(), addScheduler)
+	eventRouter.DELETE("/:eventId/schedulers/:userId", middleware.AuthRequired(), removeScheduler)
 }
 
 // @Summary Creates a new event
@@ -421,8 +425,9 @@ func getEvent(c *gin.Context) {
 	isOwner := userSesh != "" && ownerSesh == userSesh
 
 	// Strip sensitive user info. Names stay visible so everybody can see who
-	// picked which slot; email addresses are only exposed to the event owner.
-	showEmails := isOwner
+	// picked which slot; email addresses are only exposed to the event owner and to
+	// the schedulers they've delegated to, who need them to send the calendar invite.
+	showEmails := isOwner || isEventScheduler(event, userSesh)
 	for userId, response := range responsesMap {
 		stripSensitiveUserFields(response.User)
 		if !showEmails {
@@ -519,10 +524,12 @@ func getResponses(c *gin.Context) {
 	isOwner := userSesh != "" && ownerSesh == userSesh
 
 	// Strip sensitive user info. Names stay visible so everybody can see who
-	// picked which slot; email addresses are only exposed to the event owner.
+	// picked which slot; email addresses are only exposed to the event owner and to
+	// the schedulers they've delegated to, who need them to send the calendar invite.
+	showEmails := isOwner || isEventScheduler(event, userSesh)
 	for userId, response := range responsesMap {
 		stripSensitiveUserFields(response.User)
-		if !isOwner {
+		if !showEmails {
 			response.Email = ""
 			if response.User != nil {
 				response.User.Email = ""
@@ -1106,6 +1113,9 @@ func duplicateEvent(c *gin.Context) {
 	event.Name = payload.EventName
 	numResponses := 0
 	event.NumResponses = &numResponses
+	// Scheduling access carries email visibility, so the owner re-grants it deliberately
+	// on the copy rather than inheriting it silently
+	event.Schedulers = nil
 	if *payload.CopyAvailability {
 		eventResponses := db.GetEventResponses(eventId)
 		for _, eventResponse := range eventResponses {
@@ -1173,6 +1183,129 @@ func archiveEvent(c *gin.Context) {
 	var event models.Event
 	err = result.Decode(&event)
 	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// requireSchedulerGrantOwner loads the event named by :eventId and verifies the signed-in
+// user owns it. Delegating the ability to schedule is owner-only: schedulers can't grant
+// scheduling access to anybody else. Returns nil after writing the error response.
+func requireSchedulerGrantOwner(c *gin.Context) *models.Event {
+	event := db.GetEventByEitherId(c.Param("eventId"))
+	if event == nil {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return nil
+	}
+
+	user := utils.GetAuthUser(c)
+	if event.OwnerId != user.Id {
+		c.JSON(http.StatusForbidden, responses.Error{Error: errs.UserNotEventOwner})
+		return nil
+	}
+
+	return event
+}
+
+// @Summary Gives a respondent permission to schedule this event
+// @Description Only the event owner can grant this. The target must be a signed-in user who has responded to the event — guest respondents have no account to attach the grant to. Grants are sticky: they survive the respondent later deleting their availability.
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param payload body object{userId=string} true "Object containing the id of the user to grant scheduling access to"
+// @Success 200
+// @Failure 400 {object} responses.Error "Object containing the error that occurred"
+// @Failure 403 {object} responses.Error "Object containing the error that occurred"
+// @Failure 404 {object} responses.Error "Object containing the error that occurred"
+// @Router /events/{eventId}/schedulers [post]
+func addScheduler(c *gin.Context) {
+	payload := struct {
+		UserId string `json:"userId" binding:"required"`
+	}{}
+	if err := c.Bind(&payload); err != nil {
+		return
+	}
+
+	event := requireSchedulerGrantOwner(c)
+	if event == nil {
+		return
+	}
+
+	schedulerId, err := primitive.ObjectIDFromHex(payload.UserId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.InvalidScheduler})
+		return
+	}
+
+	// The owner already schedules by virtue of owning the event, so granting it to
+	// themselves would put a redundant entry in the list.
+	if schedulerId == event.OwnerId {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.InvalidScheduler})
+		return
+	}
+
+	// Only signed-in respondents can be granted access. Guest responses are keyed by
+	// the display name they typed, which is neither unique nor authenticated, so there
+	// is no identity to attach a grant to.
+	hasResponded := false
+	for _, eventResponse := range db.GetEventResponses(event.Id.Hex()) {
+		if eventResponse.UserId == payload.UserId {
+			hasResponded = true
+			break
+		}
+	}
+	if !hasResponded {
+		if _, ok := event.SignUpResponses[payload.UserId]; ok {
+			hasResponded = true
+		}
+	}
+	if !hasResponded {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.InvalidScheduler})
+		return
+	}
+
+	// $addToSet keeps the grant idempotent if the client double-submits
+	if _, err := db.EventsCollection.UpdateOne(context.Background(), bson.M{
+		"_id": event.Id,
+	}, bson.M{
+		"$addToSet": bson.M{"schedulers": schedulerId},
+	}); err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	c.Status(http.StatusOK)
+}
+
+// @Summary Revokes a respondent's permission to schedule this event
+// @Description Only the event owner can revoke. Revoking is idempotent — removing somebody who was never granted access succeeds.
+// @Tags events
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param userId path string true "ID of the user to revoke scheduling access from"
+// @Success 200
+// @Failure 400 {object} responses.Error "Object containing the error that occurred"
+// @Failure 403 {object} responses.Error "Object containing the error that occurred"
+// @Failure 404 {object} responses.Error "Object containing the error that occurred"
+// @Router /events/{eventId}/schedulers/{userId} [delete]
+func removeScheduler(c *gin.Context) {
+	event := requireSchedulerGrantOwner(c)
+	if event == nil {
+		return
+	}
+
+	schedulerId, err := primitive.ObjectIDFromHex(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.InvalidScheduler})
+		return
+	}
+
+	if _, err := db.EventsCollection.UpdateOne(context.Background(), bson.M{
+		"_id": event.Id,
+	}, bson.M{
+		"$pull": bson.M{"schedulers": schedulerId},
+	}); err != nil {
 		logger.StdErr.Panicln(err)
 	}
 
@@ -1325,6 +1458,8 @@ func importEvent(c *gin.Context) {
 	remoteEvent.ScheduledEvent = nil
 	remoteEvent.CalendarEventId = ""
 	remoteEvent.CreatorPosthogId = nil
+	// Scheduler grants reference user ids on the remote instance, which mean nothing here
+	remoteEvent.Schedulers = nil
 	remoteEvent.SignUpResponses = make(map[string]*models.SignUpResponse)
 
 	_, err = db.EventsCollection.InsertOne(context.Background(), remoteEvent)
@@ -1382,6 +1517,25 @@ func findResponse(responses []models.EventResponse, userId string) (int, *models
 		}
 	}
 	return -1, nil
+}
+
+// isEventScheduler reports whether the signed-in user has been given permission by the
+// owner to schedule this event. Schedulers need respondents' emails to populate the
+// calendar invite, so they are treated like the owner when stripping sensitive fields.
+func isEventScheduler(event *models.Event, userSesh string) bool {
+	if userSesh == "" || len(event.Schedulers) == 0 {
+		return false
+	}
+	userId, err := primitive.ObjectIDFromHex(userSesh)
+	if err != nil {
+		return false
+	}
+	for _, schedulerId := range event.Schedulers {
+		if schedulerId == userId {
+			return true
+		}
+	}
+	return false
 }
 
 // shouldKeepGroupResponseUserEmails is true for signed-in group owners and invitees

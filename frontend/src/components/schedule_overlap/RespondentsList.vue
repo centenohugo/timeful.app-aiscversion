@@ -93,7 +93,7 @@
       v-if="isOwner && !isPhone && event.blindAvailabilityEnabled"
       class="tw-mb-2 tw-mt-1 tw-text-xs tw-italic tw-text-very-dark-gray"
     >
-      Responses are only visible to {{ isOwner ? "you" : "event creator" }}
+      {{ blindVisibilityText }}
     </div>
     <div
       ref="scrollableSection"
@@ -163,7 +163,7 @@
               </div>
               <div class="tw-flex tw-flex-col">
                 <div
-                  class="tw-mr-1 tw-transition-all"
+                  class="tw-mr-1 tw-flex tw-items-center tw-transition-all"
                   :class="respondentClass(user._id)"
                 >
                   {{
@@ -172,6 +172,13 @@
                     user.lastName +
                     (respondentIfNeeded(user._id) ? "*" : "")
                   }}
+                  <Tooltip
+                    v-if="showsCrown(user)"
+                    content="Can schedule this event"
+                    class="tw-ml-1 tw-flex tw-items-center"
+                  >
+                    <v-icon x-small color="#4F4F4F">mdi-crown</v-icon>
+                  </Tooltip>
                 </div>
                 <div
                   v-if="isOwner && event.collectEmails"
@@ -208,6 +215,23 @@
                         </v-list-item-title>
                       </v-list-item>
                       <v-list-item
+                        v-if="canGrantTo(user)"
+                        @click="() => toggleScheduler(user)"
+                      >
+                        <v-list-item-title class="tw-flex tw-items-center">
+                          <v-icon small class="tw-mr-2" color="#4F4F4F">{{
+                            isScheduler(user)
+                              ? "mdi-crown"
+                              : "mdi-crown-outline"
+                          }}</v-icon>
+                          {{
+                            isScheduler(user)
+                              ? "Remove scheduling access"
+                              : "Allow to schedule"
+                          }}
+                        </v-list-item-title>
+                      </v-list-item>
+                      <v-list-item
                         v-if="isOwner && !isGroup"
                         @click="() => showDeleteAvailabilityDialog(user)"
                       >
@@ -230,6 +254,25 @@
                     @click="$emit('editGuestAvailability', user._id)"
                     ><v-icon small color="#4F4F4F">mdi-pencil</v-icon></v-btn
                   >
+                  <Tooltip
+                    v-if="canGrantTo(user)"
+                    :content="
+                      isScheduler(user)
+                        ? 'Remove scheduling access'
+                        : 'Allow to schedule this event'
+                    "
+                    class="tw-inline-flex"
+                  >
+                    <v-btn
+                      small
+                      icon
+                      class="tw-bg-white"
+                      @click.stop="() => toggleScheduler(user)"
+                      ><v-icon small color="#4F4F4F">{{
+                        isScheduler(user) ? "mdi-crown" : "mdi-crown-outline"
+                      }}</v-icon></v-btn
+                    >
+                  </Tooltip>
                   <v-btn
                     v-if="isOwner && !isGroup"
                     small
@@ -333,8 +376,32 @@
       v-if="(!isOwner || isPhone) && event.blindAvailabilityEnabled"
       class="tw-mt-2 tw-text-xs tw-italic tw-text-very-dark-gray"
     >
-      Responses are only visible to {{ isOwner ? "you" : "event creator" }}
+      {{ blindVisibilityText }}
     </div>
+
+    <v-dialog v-model="grantSchedulerDialog" width="500" persistent>
+      <v-card>
+        <v-card-title
+          >Allow {{ userToGrant?.firstName }} to schedule?</v-card-title
+        >
+        <v-card-text class="tw-text-sm tw-text-dark-gray">
+          <strong>{{ userToGrant?.firstName }}</strong> will be able to pick a
+          time and send calendar invites to everyone who responded. They'll also
+          be able to see participants' email addresses.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn text @click="grantSchedulerDialog = false">Cancel</v-btn>
+          <v-btn
+            color="primary"
+            :loading="grantLoading"
+            @click="() => setScheduler(userToGrant, true)"
+          >
+            Allow
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-dialog v-model="deleteAvailabilityDialog" width="500" persistent>
       <v-card>
@@ -396,16 +463,17 @@
 </style>
 
 <script>
-import { _delete, getLocale, isPhone } from "@/utils"
+import { _delete, post, getLocale, isPhone, isGuestEvent } from "@/utils"
 import UserAvatarContent from "../UserAvatarContent.vue"
 import { mapState, mapActions } from "vuex"
 import EventOptions from "./EventOptions.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
+import Tooltip from "@/components/Tooltip.vue"
 
 export default {
   name: "RespondentsList",
 
-  components: { UserAvatarContent, EventOptions, OverflowGradient },
+  components: { UserAvatarContent, EventOptions, OverflowGradient, Tooltip },
 
   props: {
     eventId: { type: String, required: true },
@@ -448,6 +516,11 @@ export default {
         ],
       },
       userToDelete: null,
+      // Confirming the first scheduling grant on this event, since it also reveals
+      // respondents' email addresses to the grantee
+      grantSchedulerDialog: false,
+      userToGrant: null,
+      grantLoading: false,
       desktopMaxHeight: 0,
       respondentsListMinHeight: 400,
 
@@ -460,6 +533,37 @@ export default {
 
   computed: {
     ...mapState(["authUser"]),
+    /** Ids the owner has granted scheduling access to */
+    schedulerIds() {
+      return this.event.schedulers ?? []
+    },
+    /**
+     * Whether the owner can delegate scheduling on this event. Guest events have no real
+     * owner and are already schedulable by everybody, and groups/sign up forms keep their
+     * participants in a different shape than the respondent rows below.
+     */
+    canGrantScheduling() {
+      return (
+        this.isOwner &&
+        !this.isGroup &&
+        !isGuestEvent(this.event) &&
+        !this.event.isSignUpForm
+      )
+    },
+    /**
+     * Blind availability promises responses are private to the creator. Once the creator
+     * delegates, that's no longer the whole truth, so say so — but only when it applies.
+     */
+    blindVisibilityText() {
+      if (this.schedulerIds.length > 0) {
+        return this.isOwner
+          ? "Responses are only visible to you and anyone you've given scheduling access"
+          : "Responses are only visible to the event creator and anyone they've given scheduling access"
+      }
+      return `Responses are only visible to ${
+        this.isOwner ? "you" : "event creator"
+      }`
+    },
     allowExportCsv() {
       if (this.isGroup || this.isPhone) return false
 
@@ -604,6 +708,73 @@ export default {
     isGuest(user) {
       return user._id == user.firstName
     },
+    /** Whether the owner has given this respondent permission to schedule the event */
+    isScheduler(user) {
+      return this.schedulerIds.includes(user._id)
+    },
+    /** Whether this respondent should show a crown, i.e. they can schedule the event */
+    showsCrown(user) {
+      if (isGuestEvent(this.event)) {
+        // Everybody can schedule a guest event, so a crown on every row says nothing
+        return false
+      }
+      return user._id === this.event.ownerId || this.isScheduler(user)
+    },
+    /**
+     * Guests are keyed by the display name they typed, which is neither unique nor
+     * authenticated, so there is no identity to attach a grant to.
+     */
+    canGrantTo(user) {
+      return (
+        this.canGrantScheduling &&
+        user._id !== this.event.ownerId &&
+        !this.isGuest(user)
+      )
+    },
+    /** Grants or revokes scheduling access, confirming the first grant on this event */
+    toggleScheduler(user) {
+      if (this.isScheduler(user)) {
+        this.setScheduler(user, false)
+        return
+      }
+
+      // The grant also reveals every respondent's email address, so say so once
+      if (this.schedulerIds.length === 0) {
+        this.userToGrant = user
+        this.grantSchedulerDialog = true
+        return
+      }
+
+      this.setScheduler(user, true)
+    },
+    /** Writes the grant to the server and refreshes the event */
+    async setScheduler(user, granted) {
+      this.grantLoading = true
+      try {
+        if (granted) {
+          await post(`/events/${this.eventId}/schedulers`, { userId: user._id })
+        } else {
+          await _delete(`/events/${this.eventId}/schedulers/${user._id}`)
+        }
+        this.$emit("refreshEvent")
+        this.showInfo(
+          granted
+            ? `${user.firstName} can now schedule this event`
+            : `${user.firstName} can no longer schedule this event`
+        )
+      } catch (e) {
+        console.error(e)
+        this.showError(
+          granted
+            ? "There was an error giving that person scheduling access!"
+            : "There was an error removing that person's scheduling access!"
+        )
+      } finally {
+        this.grantLoading = false
+        this.grantSchedulerDialog = false
+        this.userToGrant = null
+      }
+    },
     /** Shows the delete availability dialog */
     showDeleteAvailabilityDialog(user) {
       this.deleteAvailabilityDialog = true
@@ -617,7 +788,6 @@ export default {
         })
         this.$emit("refreshEvent")
         this.showInfo("Availability successfully deleted!")
-
       } catch (e) {
         console.error(e)
         this.showError(
@@ -731,8 +901,7 @@ export default {
       downloadLink.click()
       document.body.removeChild(downloadLink)
     },
-    trackExportCsvClick() {
-    },
+    trackExportCsvClick() {},
     setDesktopMaxHeight() {
       const el = this.$refs.scrollableSection
       if (el) {

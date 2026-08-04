@@ -51,7 +51,7 @@
                     <div
                       v-for="(day, i) in monthDays"
                       :key="day.time"
-                      class="timeslot tw-aspect-square tw-flex tw-items-center tw-justify-center tw-text-sm sm:tw-text-base"
+                      class="timeslot tw-flex tw-aspect-square tw-items-center tw-justify-center tw-text-sm sm:tw-text-base"
                       :class="dayTimeslotClassStyle[i].class"
                       :style="dayTimeslotClassStyle[i].style"
                       v-on="dayTimeslotVon[i]"
@@ -1029,6 +1029,7 @@ import {
   getTimezoneReferenceDateForEvent,
   timeNumToTimeString,
   prefersStartOnMonday,
+  canScheduleEvent,
 } from "@/utils"
 import {
   availabilityTypes,
@@ -1653,6 +1654,10 @@ export default {
     isGuestEvent() {
       return this.event.ownerId === guestUserId
     },
+    /** Whether the current user may schedule this event (owner, or delegated by them) */
+    canSchedule() {
+      return canScheduleEvent(this.event, this.authUser?._id)
+    },
     isSpecificDates() {
       return this.event.type === eventTypes.SPECIFIC_DATES || !this.event.type
     },
@@ -1766,8 +1771,9 @@ export default {
         return parsed
       }
 
-      // Return only current user availability if using blind availabilities and user is not owner
-      if (this.event.blindAvailabilityEnabled && !this.isOwner) {
+      // Return only current user availability if using blind availabilities. Schedulers
+      // are exempt alongside the owner: they can't pick a slot without seeing the overlap.
+      if (this.event.blindAvailabilityEnabled && !this.canSchedule) {
         const guestName = localStorage[this.guestNameKey]
         const userId = this.authUser?._id ?? guestName
         if (userId in this.event.responses) {

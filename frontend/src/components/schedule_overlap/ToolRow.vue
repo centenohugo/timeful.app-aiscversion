@@ -116,17 +116,16 @@
         </template>
       </div>
     </div>
-
   </div>
 </template>
 
 <script>
 import TimezoneSelector from "./TimezoneSelector.vue"
 import GCalWeekSelector from "./GCalWeekSelector.vue"
-import { isPhone } from "@/utils"
+import { isPhone, canScheduleEvent } from "@/utils"
 import ExpandableSection from "../ExpandableSection.vue"
 import EventOptions from "./EventOptions.vue"
-import { timeTypes, guestUserId } from "@/constants"
+import { timeTypes } from "@/constants"
 import { mapState } from "vuex"
 
 export default {
@@ -174,18 +173,15 @@ export default {
     isPhone() {
       return isPhone(this.$vuetify)
     },
-    guestEvent() {
-      return this.event.ownerId == guestUserId
-    },
-    isOwner() {
-      return this.event.ownerId == this.authUser?._id
+    canSchedule() {
+      return canScheduleEvent(this.event, this.authUser?._id)
     },
     showScheduleEventButton() {
       return (
         !this.event.daysOnly &&
         this.numResponses > 0 &&
         this.state !== this.states.EDIT_AVAILABILITY &&
-        (this.guestEvent || this.isOwner)
+        this.canSchedule
       )
     },
   },

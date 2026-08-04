@@ -20,6 +20,7 @@ const (
 	InvalidIdToken        string = "invalid-id-token"
 	InvalidProxyName      string = "invalid-proxy-name"
 	ProxyNotAllowed       string = "proxy-not-allowed"
+	InvalidScheduler      string = "invalid-scheduler"
 )
 
 type GoogleAPIError struct {
