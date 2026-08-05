@@ -21,6 +21,10 @@ const (
 	InvalidProxyName      string = "invalid-proxy-name"
 	ProxyNotAllowed       string = "proxy-not-allowed"
 	InvalidScheduler      string = "invalid-scheduler"
+
+	NoGoogleCalendarAccount         string = "no-google-calendar-account"
+	CalendarWritePermissionRequired string = "calendar-write-permission-required"
+	FailedToCreateCalendarEvent     string = "failed-to-create-calendar-event"
 )
 
 type GoogleAPIError struct {

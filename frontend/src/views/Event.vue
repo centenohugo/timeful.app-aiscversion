@@ -324,8 +324,7 @@
           <template v-if="!isEditing && !isScheduling">
             <v-btn
               v-if="!event.daysOnly && numResponses > 0"
-              text
-              class="tw-text-white"
+              class="tw-bg-white tw-text-green"
               @click="scheduleEvent"
               >Schedule</v-btn
             >
@@ -366,7 +365,8 @@
             </v-btn>
             <v-spacer />
             <v-btn
-              :disabled="!allowScheduleEvent"
+              :disabled="!allowScheduleEvent || schedulingEvent"
+              :loading="schedulingEvent"
               class="tw-bg-white tw-text-blue"
               @click="confirmScheduleEvent"
             >
@@ -493,6 +493,9 @@ export default {
     ...mapState(["authUser", "events"]),
     allowScheduleEvent() {
       return this.scheduleOverlapComponent?.allowScheduleEvent
+    },
+    schedulingEvent() {
+      return this.scheduleOverlapComponent?.schedulingEvent
     },
     calendarTypes() {
       return calendarTypes

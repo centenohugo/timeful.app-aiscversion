@@ -107,7 +107,8 @@
             Cancel
           </v-btn>
           <v-btn
-            :disabled="!allowScheduleEvent"
+            :disabled="!allowScheduleEvent || schedulingEvent"
+            :loading="schedulingEvent"
             class="tw-bg-blue tw-text-white"
             @click="(e) => $emit('confirmScheduleEvent', true)"
           >
@@ -146,6 +147,7 @@ export default {
     numResponses: { type: Number, required: true },
     mobileNumDays: { type: Number, default: 3 }, // The number of days to show at a time on mobile
     allowScheduleEvent: { type: Boolean, required: true },
+    schedulingEvent: { type: Boolean, default: false },
     showEventOptions: { type: Boolean, required: true },
     timeType: { type: String, required: true },
   },

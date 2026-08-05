@@ -22,6 +22,7 @@ import (
 	"schej.it/server/middleware"
 	"schej.it/server/models"
 	"schej.it/server/responses"
+	"schej.it/server/services/auth"
 	"schej.it/server/services/calendar"
 	"schej.it/server/utils"
 )
@@ -51,6 +52,9 @@ func InitEvents(router *gin.RouterGroup) {
 	// Only the event owner may delegate the ability to schedule the event.
 	eventRouter.POST("/:eventId/schedulers", middleware.AuthRequired(), addScheduler)
 	eventRouter.DELETE("/:eventId/schedulers/:userId", middleware.AuthRequired(), removeScheduler)
+
+	// Creates the Google Calendar event and invites everyone who responded.
+	eventRouter.POST("/:eventId/schedule", middleware.AuthRequired(), scheduleEvent)
 }
 
 // @Summary Creates a new event
@@ -1536,6 +1540,116 @@ func isEventScheduler(event *models.Event, userSesh string) bool {
 		}
 	}
 	return false
+}
+
+// getEventAttendeeEmails returns the deduplicated, lowercased emails of everyone who has
+// responded to the event: signed-in respondents' account emails, plus any email a guest
+// respondent typed in themselves. This is independent of which slot they voted for — everybody
+// who responded should be invited to whatever time ends up getting scheduled.
+func getEventAttendeeEmails(event *models.Event) []string {
+	eventResponses := db.GetEventResponses(event.Id.Hex())
+
+	emailSet := make(map[string]bool)
+	for _, eventResponse := range eventResponses {
+		if eventResponse.Response == nil {
+			continue
+		}
+
+		email := eventResponse.Response.Email
+		if user := db.GetUserById(eventResponse.UserId); user != nil {
+			email = user.Email
+		}
+
+		email = strings.ToLower(strings.TrimSpace(email))
+		if email != "" {
+			emailSet[email] = true
+		}
+	}
+
+	emails := make([]string, 0, len(emailSet))
+	for email := range emailSet {
+		emails = append(emails, email)
+	}
+	return emails
+}
+
+// @Summary Creates a Google Calendar event for the given time and invites everyone who responded
+// @Description Only the event owner or a delegated scheduler may do this. Requires the caller's primary Google account to have granted calendar write access.
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param eventId path string true "Event ID"
+// @Param payload body object{startDate=string,endDate=string,timezone=string} true "Object containing the start/end time (RFC3339) and IANA timezone to schedule the event for"
+// @Success 200 {object} object{htmlLink=string,hangoutLink=string}
+// @Failure 400 {object} responses.Error "Object containing the error that occurred"
+// @Failure 403 {object} responses.Error "Object containing the error that occurred"
+// @Failure 404 {object} responses.Error "Object containing the error that occurred"
+// @Failure 502 {object} responses.Error "Object containing the error that occurred"
+// @Router /events/{eventId}/schedule [post]
+func scheduleEvent(c *gin.Context) {
+	payload := struct {
+		StartDate time.Time `json:"startDate" binding:"required"`
+		EndDate   time.Time `json:"endDate" binding:"required"`
+		Timezone  string    `json:"timezone" binding:"required"`
+	}{}
+	if err := c.BindJSON(&payload); err != nil {
+		return
+	}
+
+	event := db.GetEventByEitherId(c.Param("eventId"))
+	if event == nil {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.EventNotFound})
+		return
+	}
+
+	user := utils.GetAuthUser(c)
+	isOwner := event.OwnerId == user.Id
+	if !isOwner && !isEventScheduler(event, user.Id.Hex()) {
+		c.JSON(http.StatusForbidden, responses.Error{Error: errs.UserNotEventOwner})
+		return
+	}
+
+	primaryAccountKey := utils.GetPrimaryAccountKey(user)
+	account, ok := user.CalendarAccounts[primaryAccountKey]
+	if !ok || account.CalendarType != models.GoogleCalendarType || account.OAuth2CalendarAuth == nil {
+		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.NoGoogleCalendarAccount})
+		return
+	}
+	if !utils.HasCalendarWriteScope(account.OAuth2CalendarAuth.Scope) {
+		c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
+		return
+	}
+
+	accountsToRefresh := make(models.Set[string])
+	accountsToRefresh[primaryAccountKey] = struct{}{}
+	auth.RefreshUserTokenIfNecessary(user, accountsToRefresh)
+	account = user.CalendarAccounts[primaryAccountKey]
+
+	eventIdString := event.Id.Hex()
+	if event.ShortId != nil {
+		eventIdString = *event.ShortId
+	}
+	description := fmt.Sprintf("This event was scheduled with Meet AISC: %s/e/%s", utils.GetOrigin(c), eventIdString)
+
+	googleCalendar := calendar.GoogleCalendar{OAuth2CalendarAuth: *account.OAuth2CalendarAuth}
+	createdEvent, err := googleCalendar.CreateCalendarEvent(
+		event.Name,
+		description,
+		payload.StartDate,
+		payload.EndDate,
+		payload.Timezone,
+		getEventAttendeeEmails(event),
+	)
+	if err != nil {
+		logger.StdErr.Println(err)
+		c.JSON(http.StatusBadGateway, responses.Error{Error: errs.FailedToCreateCalendarEvent})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"htmlLink":    createdEvent.HtmlLink,
+		"hangoutLink": createdEvent.HangoutLink,
+	})
 }
 
 // shouldKeepGroupResponseUserEmails is true for signed-in group owners and invitees
