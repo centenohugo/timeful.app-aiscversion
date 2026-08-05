@@ -236,6 +236,33 @@
                       {{ actionButtonText }}
                     </v-btn>
                   </template>
+                  <template v-else-if="isPlainAvailabilityEditing">
+                    <div
+                      class="tw-mr-2 tw-flex tw-items-center tw-text-xs tw-italic tw-text-dark-gray"
+                    >
+                      <span v-if="saveStatus === 'saving'">Saving…</span>
+                      <span v-else-if="saveStatus === 'saved'">Saved</span>
+                      <span
+                        v-else-if="saveStatus === 'error'"
+                        class="tw-not-italic"
+                      >
+                        <span class="tw-text-red">Failed to save</span>
+                        <span
+                          class="tw-cursor-pointer tw-text-red tw-underline"
+                          @click="retrySave"
+                          >Retry</span
+                        >
+                      </span>
+                    </div>
+                    <v-btn
+                      class="tw-w-20 tw-text-white"
+                      :class="'tw-bg-green'"
+                      :disabled="saveStatus === 'saving'"
+                      @click="doneEditingAvailability"
+                    >
+                      Done
+                    </v-btn>
+                  </template>
                   <template v-else>
                     <v-btn
                       class="tw-mr-1 tw-w-20 tw-text-red"
@@ -345,6 +372,25 @@
               @click="() => addAvailability()"
             >
               {{ mobileActionButtonText }}
+            </v-btn>
+          </template>
+          <template v-else-if="isPlainAvailabilityEditing">
+            <div class="tw-flex-1 tw-text-xs tw-italic tw-text-white">
+              <span v-if="saveStatus === 'saving'">Saving…</span>
+              <span v-else-if="saveStatus === 'saved'">Saved</span>
+              <span v-else-if="saveStatus === 'error'" class="tw-not-italic">
+                Failed to save
+                <span class="tw-cursor-pointer tw-underline" @click="retrySave"
+                  >Retry</span
+                >
+              </span>
+            </div>
+            <v-btn
+              class="tw-bg-white tw-text-green"
+              :disabled="saveStatus === 'saving'"
+              @click="doneEditingAvailability"
+            >
+              Done
             </v-btn>
           </template>
           <template v-else-if="isEditing">
@@ -506,6 +552,21 @@ export default {
     isEditing() {
       return this.scheduleOverlapComponent?.editing
     },
+    // Whether the current edit session is the plain (non-signup, non-group, own-response)
+    // availability flow — the only one that autosaves. Everything else keeps the old
+    // explicit Save/Cancel behavior.
+    isPlainAvailabilityEditing() {
+      return (
+        this.isEditing &&
+        !this.isSignUp &&
+        !this.isGroup &&
+        !this.addingAvailabilityAsGuest &&
+        this.curGuestId.length === 0
+      )
+    },
+    saveStatus() {
+      return this.scheduleOverlapComponent?.saveStatus
+    },
     isScheduling() {
       return this.scheduleOverlapComponent?.scheduling
     },
@@ -624,6 +685,29 @@ export default {
     addAvailabilityAsGuest() {
       this.addingAvailabilityAsGuest = true
       this.setAvailabilityManually()
+    },
+    /** Retries a failed autosave without exiting edit mode (plain availability flow only) */
+    async retrySave() {
+      if (!this.scheduleOverlapComponent) return
+      try {
+        await this.scheduleOverlapComponent.flushAutosave()
+      } catch (err) {
+        // saveStatus already reflects the failure; nothing further to do here.
+      }
+    },
+    /**
+     * Exits the plain availability edit flow. Flushes any pending autosave first and, if that
+     * fails, stays in edit mode with the failure surfaced instead of exiting silently — same
+     * "no work lost without you knowing" guarantee autosave exists for in the first place.
+     */
+    async doneEditingAvailability() {
+      if (!this.scheduleOverlapComponent) return
+      try {
+        await this.scheduleOverlapComponent.flushAutosave()
+      } catch (err) {
+        return
+      }
+      this.scheduleOverlapComponent.stopEditing()
     },
     cancelEditing() {
       /* Cancels editing and resets availability to previous */
@@ -989,6 +1073,12 @@ export default {
 
     onBeforeUnload(e) {
       if (this.areUnsavedChanges) {
+        if (this.isPlainAvailabilityEditing) {
+          // Best-effort: browsers restrict what can be reliably awaited during unload, so this
+          // isn't guaranteed to land. The native "leave site?" prompt below is what actually
+          // protects the change if the user cancels navigation and lets the debounce complete.
+          this.scheduleOverlapComponent?.flushAutosave()?.catch(() => {})
+        }
         e.preventDefault()
         e.returnValue = ""
         return
