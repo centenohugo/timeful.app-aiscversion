@@ -1122,6 +1122,9 @@ export default {
       availabilityAnimEnabled: false, // Whether to animate timeslots changing colors
       maxAnimTime: 1200, // Max amount of time for availability animation
       unsavedChanges: false, // If there are unsaved availability changes
+      saveStatus: "idle", // Autosave status for the plain (non-group) editing flow: "idle" | "saving" | "saved" | "error"
+      autosaveDebounceTimeout: null, // Fires flushAutosave() ~2s after the last edit
+      autosaveMaxWaitTimeout: null, // Forces flushAutosave() at most ~10s after the first unsaved edit, even under continuous editing
       curTimeslot: { row: -1, col: -1 }, // The currently highlighted timeslot
       timeslotSelected: false, // Whether a timeslot is selected (used to persist selection on desktop)
       curTimeslotAvailability: {}, // The users available for the current timeslot
@@ -2046,7 +2049,31 @@ export default {
     },
 
     // Hint stuff
+    /**
+     * Whether to nudge the user that they haven't looked at every page of this (paginated,
+     * multi-day) event yet. Autosave persists whatever's on screen regardless of page, so days
+     * they never visit read as "unavailable" rather than "unknown" — this used to be a blocking
+     * "are you sure?" dialog gating the old explicit Save, but blocking no longer prevents any
+     * data loss (autosave already wrote whatever's there), so it's just an ambient reminder now.
+     * Mirrors the original dialog's condition: only for a first-time response, and only once.
+     */
+    pagesNotVisitedHintShown() {
+      return (
+        this.state === this.states.EDIT_AVAILABILITY &&
+        !this.isGroup &&
+        !this.addingAvailabilityAsGuest &&
+        this.curGuestId.length === 0 &&
+        this.hasPages &&
+        !this.pageHasChanged &&
+        this.authUser &&
+        !(this.authUser._id in this.event.responses)
+      )
+    },
     hintText() {
+      if (this.pagesNotVisitedHintShown) {
+        return "You haven't checked all days yet — days you don't visit will be saved as unavailable. Use the arrows above to see more."
+      }
+
       if (this.isPhone) {
         switch (this.state) {
           case this.isGroup && this.states.EDIT_AVAILABILITY:
@@ -2086,7 +2113,10 @@ export default {
       return `closedHintText${this.state}` + ("&isGroup" ? this.isGroup : "")
     },
     hintTextShown() {
-      return this.showHintText && this.hintText != "" && !this.hintClosed
+      return (
+        this.pagesNotVisitedHintShown ||
+        (this.showHintText && this.hintText != "" && !this.hintClosed)
+      )
     },
 
     timeslotClassStyle() {
@@ -2866,6 +2896,48 @@ export default {
 
       this.refreshEvent()
       this.unsavedChanges = false
+    },
+    /**
+     * Autosave for the plain (non-group) editing flow. Called from the `availability` watcher
+     * on every edit (manual drag or calendar auto-fill both count). Debounces ~2s so a run of
+     * quick successive strokes collapses into one request, but is capped at ~10s so a long
+     * uninterrupted editing session still gets persisted periodically rather than only once the
+     * user finally pauses.
+     */
+    queueAutosave() {
+      // flushAutosave() rethrows on failure so doneEditingAvailability()/retrySave() can react
+      // to it; these timer-triggered calls have no caller to react, so swallow it here instead
+      // of leaving an unhandled promise rejection. The failure is already visible via saveStatus.
+      const flush = () => this.flushAutosave().catch(() => {})
+
+      clearTimeout(this.autosaveDebounceTimeout)
+      this.autosaveDebounceTimeout = setTimeout(flush, 2000)
+
+      if (!this.autosaveMaxWaitTimeout) {
+        this.autosaveMaxWaitTimeout = setTimeout(flush, 10000)
+      }
+    },
+    /**
+     * Persists the current availability immediately, bypassing the debounce. Called by the
+     * pending timers above, and directly (awaited) when the user clicks "Done" so we never let
+     * them exit edit mode with a save still in flight or a failure unsurfaced.
+     */
+    async flushAutosave() {
+      clearTimeout(this.autosaveDebounceTimeout)
+      clearTimeout(this.autosaveMaxWaitTimeout)
+      this.autosaveDebounceTimeout = null
+      this.autosaveMaxWaitTimeout = null
+
+      if (!this.unsavedChanges) return
+
+      this.saveStatus = "saving"
+      try {
+        await this.submitAvailability()
+        this.saveStatus = "saved"
+      } catch (err) {
+        this.saveStatus = "error"
+        throw err
+      }
     },
     async submitNewSignUpBlocks() {
       if (
@@ -4040,7 +4112,11 @@ export default {
     // -----------------------------------
     closeHint() {
       this.hintState = false
-      localStorage[this.hintStateLocalStorageKey] = true
+      // The pages-not-visited nudge is driven by live page-visit state, not a static "how this
+      // works" tip, so dismissing it shouldn't be remembered forever the way the others are.
+      if (!this.pagesNotVisitedHintShown) {
+        localStorage[this.hintStateLocalStorageKey] = true
+      }
     },
     //#endregion
 
@@ -4355,6 +4431,12 @@ export default {
     availability() {
       if (this.state === this.states.EDIT_AVAILABILITY) {
         this.unsavedChanges = true
+
+        // Autosave only covers the plain (non-group) editing flow for now; groups submit a
+        // different payload shape (enabled calendars, manual availability) via explicit Save.
+        if (!this.isGroup) {
+          this.queueAutosave()
+        }
       }
     },
     event: {
@@ -4372,6 +4454,11 @@ export default {
         this.curScheduledEvent = null
       } else if (prevState === this.states.EDIT_AVAILABILITY) {
         this.unsavedChanges = false
+        clearTimeout(this.autosaveDebounceTimeout)
+        clearTimeout(this.autosaveMaxWaitTimeout)
+        this.autosaveDebounceTimeout = null
+        this.autosaveMaxWaitTimeout = null
+        this.saveStatus = "idle"
       }
 
       if (nextState === this.states.SET_SPECIFIC_TIMES) {

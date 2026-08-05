@@ -8,3 +8,4 @@ deploy_scripts/reboot_log.txt
 
 # Root env for docker compose interpolation (build args) — keep secrets out of git
 /.env
+.gstack/
