@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -159,4 +160,79 @@ func (calendar *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin tim
 	}
 
 	return calendarEvents, nil
+}
+
+// CreatedCalendarEvent holds the pieces of a newly-created Google Calendar event that callers
+// care about: a link to view it, and the auto-generated Google Meet link (if any).
+type CreatedCalendarEvent struct {
+	Id          string `json:"id"`
+	HtmlLink    string `json:"htmlLink"`
+	HangoutLink string `json:"hangoutLink"`
+}
+
+// CreateCalendarEvent creates an event on the user's primary Google Calendar, invites the given
+// attendees (sending them an email invite via sendUpdates=all), and requests a Google Meet
+// conference link. Requires an access token granted with the calendar.events (write) scope.
+func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description string, start time.Time, end time.Time, timezone string, attendeeEmails []string) (*CreatedCalendarEvent, error) {
+	attendees := make([]map[string]string, 0, len(attendeeEmails))
+	for _, email := range attendeeEmails {
+		attendees = append(attendees, map[string]string{"email": email})
+	}
+
+	body := map[string]interface{}{
+		"summary":     summary,
+		"description": description,
+		"start": map[string]string{
+			"dateTime": start.Format(time.RFC3339),
+			"timeZone": timezone,
+		},
+		"end": map[string]string{
+			"dateTime": end.Format(time.RFC3339),
+			"timeZone": timezone,
+		},
+		"attendees": attendees,
+		"conferenceData": map[string]interface{}{
+			"createRequest": map[string]interface{}{
+				"requestId": primitive.NewObjectID().Hex(),
+				"conferenceSolutionKey": map[string]string{
+					"type": "hangoutsMeet",
+				},
+			},
+		},
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+
+	req, _ := http.NewRequest(
+		"POST",
+		"https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
+		bytes.NewReader(bodyBytes),
+	)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendar.AccessToken))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	type Response struct {
+		Id          string               `json:"id"`
+		HtmlLink    string               `json:"htmlLink"`
+		HangoutLink string               `json:"hangoutLink"`
+		Error       *errs.GoogleAPIError `json:"error"`
+	}
+
+	var res Response
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	if res.Error != nil {
+		return nil, res.Error
+	}
+
+	return &CreatedCalendarEvent{Id: res.Id, HtmlLink: res.HtmlLink, HangoutLink: res.HangoutLink}, nil
 }

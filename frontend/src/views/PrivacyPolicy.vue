@@ -83,21 +83,24 @@
       <p>
         Connecting your calendar is optional — the app works without it and you
         can always fill in your availability by hand. If you do connect it, we
-        request read-only scopes
-        (<code>calendar.calendarlist.readonly</code> and
-        <code>calendar.events.readonly</code>) and use them exclusively to
-        pre-fill your availability and display your own events in your schedule
-        view.
+        request
+        <code>calendar.calendarlist.readonly</code> (to list your calendars)
+        and <code>calendar.events</code> (to read your events for
+        availability pre-fill, and — only when you or someone you've
+        delegated to explicitly clicks "Schedule" on an event you own — to
+        create the resulting calendar event and Google Meet link and invite
+        respondents to it).
       </p>
       <ul>
         <li>
-          We cannot create, modify or delete anything in your calendar: the
-          permissions we ask for are read-only.
+          We never create, modify, or delete anything in your calendar except
+          the single event created by an explicit "Schedule" action you or
+          your delegate take.
         </li>
         <li>
-          Calendar events are fetched from Google while you use the app and are
-          shown only to you. Other participants see availability (free/busy
-          time), never your event titles or details.
+          Calendar events are otherwise only fetched from Google while you use
+          the app and shown only to you. Other participants see availability
+          (free/busy time), never your event titles or details.
         </li>
         <li>
           We store the list of calendars you enable and your autofill

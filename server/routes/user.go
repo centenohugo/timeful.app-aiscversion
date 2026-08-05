@@ -347,6 +347,7 @@ func addGoogleCalendarAccount(c *gin.Context) {
 		AccessToken:           tokens.AccessToken,
 		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
 		RefreshToken:          tokens.RefreshToken,
+		Scope:                 tokens.Scope,
 	}
 
 	addCalendarAccount(c, addCalendarAccountArgs{

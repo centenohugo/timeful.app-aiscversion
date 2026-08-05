@@ -197,6 +197,22 @@ func ActualCalendarAccountMapKey(user *models.User, ident string, calendarType m
 	return ""
 }
 
+// CalendarWriteScope is the Google OAuth scope needed to create calendar events (as opposed to
+// just reading them). It must be requested and granted separately from calendar.events.readonly.
+const CalendarWriteScope = "https://www.googleapis.com/auth/calendar.events"
+
+// HasCalendarWriteScope reports whether the given space-separated OAuth scope string includes the
+// exact write scope. calendar.events.readonly is a different scope string entirely, so a naive
+// substring check would incorrectly treat read-only access as sufficient.
+func HasCalendarWriteScope(scope string) bool {
+	for _, s := range strings.Fields(scope) {
+		if s == CalendarWriteScope {
+			return true
+		}
+	}
+	return false
+}
+
 func GetPrimaryAccountKey(user *models.User) string {
 	// Before primary account key was added, primary account was always the user's google calendar
 	if user.PrimaryAccountKey == nil {

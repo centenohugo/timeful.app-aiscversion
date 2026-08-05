@@ -104,6 +104,7 @@
                   :num-responses="respondents.length"
                   :mobile-num-days.sync="mobileNumDays"
                   :allow-schedule-event="allowScheduleEvent"
+                  :scheduling-event="schedulingEvent"
                   :show-event-options="showEventOptions"
                   :time-type.sync="timeType"
                   @toggleShowEventOptions="toggleShowEventOptions"
@@ -506,6 +507,7 @@
                   :num-responses="respondents.length"
                   :mobile-num-days.sync="mobileNumDays"
                   :allow-schedule-event="allowScheduleEvent"
+                  :scheduling-event="schedulingEvent"
                   :show-event-options="showEventOptions"
                   :time-type.sync="timeType"
                   @toggleShowEventOptions="toggleShowEventOptions"
@@ -860,6 +862,7 @@
           :num-responses="respondents.length"
           :mobile-num-days.sync="mobileNumDays"
           :allow-schedule-event="allowScheduleEvent"
+          :scheduling-event="schedulingEvent"
           :show-event-options="showEventOptions"
           :time-type.sync="timeType"
           @toggleShowEventOptions="toggleShowEventOptions"
@@ -1030,8 +1033,10 @@ import {
   timeNumToTimeString,
   prefersStartOnMonday,
   canScheduleEvent,
+  signInGoogle,
 } from "@/utils"
 import {
+  authTypes,
   availabilityTypes,
   calendarOptionsDefaults,
   eventTypes,
@@ -1173,6 +1178,7 @@ export default {
       /* Variables for options */
       curTimezone: this.initialTimezone,
       curScheduledEvent: null, // The scheduled event represented in the form {hoursOffset, hoursLength, dayIndex}
+      schedulingEvent: false, // Whether a request to create the Google Calendar event is in flight
       timeType:
         localStorage["timeType"] ??
         (userPrefers12h() ? timeTypes.HOUR12 : timeTypes.HOUR24), // Whether 12-hour or 24-hour
@@ -3496,9 +3502,9 @@ export default {
       this.state = this.defaultState
     },
 
-    /** Redirect user to Google Calendar to finish the creation of the event */
-    confirmScheduleEvent(googleCalendar = true) {
-      if (!this.curScheduledEvent) return
+    /** Creates the event (on Google Calendar via our backend, or via an Outlook deep-link) */
+    async confirmScheduleEvent(googleCalendar = true) {
+      if (!this.curScheduledEvent || this.schedulingEvent) return
 
       // Get start date, and end date from the area that the user has dragged out
       const { col, row, numRows } = this.curScheduledEvent
@@ -3525,34 +3531,56 @@ export default {
         endDate = dateToDowDate(this.event.dates, endDate, offset, true)
       }
 
-      // Format email string separated by commas
-      const emails = this.respondents.map((r) => {
-        // Return email if they are not a guest, otherwise return their name
-        if (r.email.length > 0) {
-          return r.email
-        } else {
-          // return `${r.firstName} (no email)`
-          return null
-        }
-      })
-      const emailsString = encodeURIComponent(emails.filter(Boolean).join(","))
-
       const eventId = this.event.shortId ?? this.event._id
 
-      let url = ""
       if (googleCalendar) {
-        // Format start and end date to be in the format required by gcal (remove -, :, and .000)
-        const start = startDate.toISOString().replace(/([-:]|\.000)/g, "")
-        const end = endDate.toISOString().replace(/([-:]|\.000)/g, "")
-
-        // Construct Google Calendar event creation template url
-        url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
-          this.event.name
-        )}&dates=${start}/${end}&details=${encodeURIComponent(
-          `\n\nThis event was scheduled with Meet AISC: ${window.location.origin}/e/`
-        )}${eventId}&ctz=${this.curTimezone.value}&add=${emailsString}`
+        // Create the event (and Google Meet link) server-side so that everyone who responded —
+        // regardless of which slot they voted for — actually gets invited. A client-side deep
+        // link can't reliably do this: Google Calendar's "add guests" URL parameter is no longer
+        // honored by the current Calendar UI.
+        this.schedulingEvent = true
+        // Open the tab synchronously, in the same tick as the click, so popup blockers still
+        // treat it as user-initiated — an await before window.open() would otherwise block it.
+        const newTab = window.open("", "_blank")
+        try {
+          const result = await post(`/events/${eventId}/schedule`, {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            timezone: this.curTimezone.value,
+          })
+          const link = result.hangoutLink || result.htmlLink
+          if (newTab) newTab.location.href = link
+          else window.open(link, "_blank")
+          this.state = this.defaultState
+        } catch (err) {
+          if (newTab) newTab.close()
+          const code = err.parsed?.error
+          if (
+            code === "calendar-write-permission-required" ||
+            code === "no-google-calendar-account"
+          ) {
+            this.showError(
+              "Reconnect your Google Calendar to let Meet AISC create the event and invite everyone."
+            )
+            signInGoogle({
+              state: {
+                type: authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT,
+                eventId,
+              },
+              requestCalendarPermission: true,
+              selectAccount: false,
+              loginHint: this.authUser?.email,
+            })
+          } else {
+            this.showError(
+              "Failed to schedule the event on Google Calendar. Please try again."
+            )
+          }
+        } finally {
+          this.schedulingEvent = false
+        }
       } else {
-        url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(
+        const url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(
           this.event.name
         )}&body=${encodeURIComponent(
           `\n\nThis event was scheduled with Meet AISC: ${window.location.origin}/e/` +
@@ -3560,11 +3588,10 @@ export default {
         )}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}&location=${encodeURIComponent(
           this.event.location || ""
         )}&path=/calendar/action/compose&timezone=${this.curTimezone.value}`
-      }
 
-      // Navigate to url and reset state
-      window.open(url, "_blank")
-      this.state = this.defaultState
+        window.open(url, "_blank")
+        this.state = this.defaultState
+      }
     },
     //#endregion
 

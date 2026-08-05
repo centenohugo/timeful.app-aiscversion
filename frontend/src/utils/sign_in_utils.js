@@ -13,8 +13,10 @@ export const signInGoogle = ({
 
   let scope = "openid email profile "
   if (requestCalendarPermission) {
+    // calendar.events (write) is required to create the Google Calendar event and Meet link
+    // when scheduling; it's a superset of calendar.events.readonly, which it replaces.
     scope +=
-      "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly "
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events "
   }
   scope = encodeURIComponent(scope)
 
