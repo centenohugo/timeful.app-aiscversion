@@ -119,6 +119,12 @@ Create `server/.env` from the template (`server/.env.template`).
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `CORS_ORIGINS` | Comma-separated allowed origins (default: production domains). For local development, set to `http://localhost:8080` |
 
+#### Optional — Data Retention
+
+| Variable                | Description                                                                                                                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EVENT_RETENTION_DAYS`  | Days to keep an event after its last possible meeting date (default: 30). The server sweeps daily and permanently deletes expired events with their responses, attendees, and folder associations. Day-of-week events and availability groups are never deleted. Set to `0` to disable. |
+
 #### Optional — Other Services
 
 | Variable                                     | Description                                       |

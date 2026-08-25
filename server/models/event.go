@@ -1,6 +1,8 @@
 package models
 
 import (
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -112,4 +114,50 @@ func (e *Event) GetId() string {
 	}
 
 	return e.Id.Hex()
+}
+
+// LastPossibleEnd returns the latest instant at which this event could still have
+// been met: the last time slot the owner opened up, plus the event's duration.
+// Only events pinned to real calendar dates have such an instant — day of week
+// events repeat forever and availability groups have no dates at all — so ok is
+// false for every other event type.
+func (e *Event) LastPossibleEnd() (time.Time, bool) {
+	if e.Type != SPECIFIC_DATES {
+		return time.Time{}, false
+	}
+
+	var last primitive.DateTime
+	found := false
+	consider := func(slot primitive.DateTime) {
+		if !found || slot > last {
+			last, found = slot, true
+		}
+	}
+
+	for _, slot := range e.Dates {
+		consider(slot)
+	}
+	// Specific times per day are stored separately, and sign up blocks can end
+	// after the day they start on, so neither can be inferred from dates alone
+	for _, slot := range e.Times {
+		consider(slot)
+	}
+	if e.SignUpBlocks != nil {
+		for _, block := range *e.SignUpBlocks {
+			if block.EndDate != nil {
+				consider(*block.EndDate)
+			}
+		}
+	}
+
+	if !found {
+		return time.Time{}, false
+	}
+
+	duration := time.Duration(0)
+	if e.Duration != nil && *e.Duration > 0 {
+		duration = time.Duration(float64(*e.Duration) * float64(time.Hour))
+	}
+
+	return last.Time().Add(duration), true
 }

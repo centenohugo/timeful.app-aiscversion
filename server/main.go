@@ -22,6 +22,7 @@ import (
 	"schej.it/server/db"
 	"schej.it/server/logger"
 	"schej.it/server/routes"
+	"schej.it/server/services/cleanup"
 	"schej.it/server/utils"
 
 	swaggerfiles "github.com/swaggo/files"
@@ -116,6 +117,10 @@ func main() {
 	// Init database
 	closeConnection := db.Init()
 	defer closeConnection()
+
+	// Periodically delete events whose last possible meeting date has long passed
+	stopExpiredEventSweeper := cleanup.StartExpiredEventSweeper()
+	defer stopExpiredEventSweeper()
 
 	// Session
 	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
