@@ -212,6 +212,10 @@ func noRouteHandler() gin.HandlerFunc {
 		params := gin.H{}
 		path := c.Request.URL.Path
 
+		// Link previews (WhatsApp, Slack, ...) require an absolute og:image URL,
+		// so every image path below is resolved against the request's origin.
+		ogImage := "/img/ogImage.png"
+
 		// Determine meta tags based off URL
 		if match := regexp.MustCompile(`\/e\/(\w+)`).FindStringSubmatchIndex(path); match != nil {
 			// /e/:eventId
@@ -226,7 +230,7 @@ func noRouteHandler() gin.HandlerFunc {
 				params["ogTitle"] = title
 
 				if len(utils.Coalesce(event.When2meetHref)) > 0 {
-					params["ogImage"] = "/img/when2meetOgImage2.png"
+					ogImage = "/img/when2meetOgImage2.png"
 				}
 			}
 		} else if regexp.MustCompile(`\/g\/`).MatchString(path) {
@@ -234,8 +238,28 @@ func noRouteHandler() gin.HandlerFunc {
 			// params["enableStickyFooter"] = true
 		}
 
+		params["ogImage"] = requestOrigin(c) + ogImage
+
 		c.HTML(http.StatusOK, "index.html", params)
 	}
+}
+
+// requestOrigin returns the scheme + host the request came in on (e.g.
+// "https://meet.aiscmadrid.com"), honoring the proxy headers set by Caddy.
+func requestOrigin(c *gin.Context) string {
+	scheme := "http"
+	if proto := c.GetHeader("X-Forwarded-Proto"); len(proto) > 0 {
+		scheme = strings.Split(proto, ",")[0]
+	} else if c.Request.TLS != nil {
+		scheme = "https"
+	}
+
+	host := c.Request.Host
+	if forwarded := c.GetHeader("X-Forwarded-Host"); len(forwarded) > 0 {
+		host = strings.Split(forwarded, ",")[0]
+	}
+
+	return fmt.Sprintf("%s://%s", scheme, strings.TrimSpace(host))
 }
 
 func splitPath(path string) []string {
