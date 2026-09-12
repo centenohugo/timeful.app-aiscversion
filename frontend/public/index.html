@@ -30,7 +30,7 @@
     <!-- iOS Safari -->
     <meta name="apple-mobile-web-app-status-bar-style" content="#FFFFFF" />
     <div style="display:none">
-    {{ $defaultTitle := "Schedule meetings" }}
+    {{ $defaultTitle := "Meet AISC — Find a time to meet" }}
     {{ $defaultDescription := "Meet AISC helps you find the best time for a group to meet. It is a free availability poll that is easy to use and integrates with your calendar." }}
     {{ $defaultOgImage := "/img/ogImage.png" }}
     </div>
@@ -62,7 +62,51 @@
         continue.</strong
       >
     </noscript>
-    <div id="app"></div>
+    <!--
+      Static description of the app, served in the initial HTML response.
+
+      Vue replaces the contents of #app when it mounts, so visitors never see
+      this, but anything that does not execute JavaScript does: link previews,
+      crawlers, and the OAuth verification review, which otherwise receives an
+      empty document and cannot confirm the app's name or purpose.
+    -->
+    <div id="app">
+      <main>
+        <h1>Meet AISC</h1>
+        <p>
+          Meet AISC is a free group scheduling tool from AISC Madrid. Share a
+          link, let everyone mark when they are available, and find the time
+          that works for the whole group without the back and forth.
+        </p>
+        <h2>What it does</h2>
+        <ul>
+          <li>Create an availability poll for any event and share its link.</li>
+          <li>
+            Guests mark their availability in the browser. No account required
+            to respond.
+          </li>
+          <li>
+            See everyone's availability overlaid so the best time is obvious.
+          </li>
+          <li>
+            Optionally connect Google Calendar to fill in your availability
+            automatically and to create the final event, with a Google Meet
+            link, once a time is chosen.
+          </li>
+        </ul>
+        <h2>Why Meet AISC asks for Google Calendar access</h2>
+        <p>
+          Connecting a calendar is optional. When you choose to connect one,
+          Meet AISC reads your existing events only to pre-fill your own
+          availability, and creates a calendar event on your behalf when you
+          schedule the meeting. Your calendar details are never shown to other
+          participants.
+        </p>
+        <p>
+          <a href="/privacy-policy">Privacy Policy</a>
+        </p>
+      </main>
+    </div>
     <!-- built files will be auto injected -->
   </body>
 </html>
