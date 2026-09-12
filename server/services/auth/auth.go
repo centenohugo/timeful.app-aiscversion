@@ -174,6 +174,17 @@ type RefreshAccessTokenData struct {
 	Error         *interface{}
 }
 
+// RefreshSucceeded reports whether a token endpoint response actually carried a new access
+// token.
+//
+// Google answers a refresh_token grant with HTTP 200 and an `error` field (usually
+// "invalid_grant") when the refresh token has been revoked or has expired — which it does after
+// 7 days for OAuth clients whose publishing status is still "Testing". The response then has an
+// empty access_token, so callers must not treat it as a success and overwrite the stored token.
+func RefreshSucceeded(res AccessTokenResponse) bool {
+	return res.Error == nil && len(res.AccessToken) > 0
+}
+
 func RefreshAccessTokenAsync(email string, accountAuth *models.OAuth2CalendarAuth, calendarType models.CalendarType, c chan RefreshAccessTokenData) {
 	// Recover from panics
 	defer func() {
@@ -211,10 +222,25 @@ func RefreshUserTokenIfNecessary(u *models.User, accounts models.Set[string]) {
 	}
 
 	// Update access tokens as responses are received
+	numAccountsUpdated := 0
 	for i := 0; i < numAccountsToUpdate; i++ {
 		res := <-refreshTokenChan
 
 		if res.Error != nil {
+			continue
+		}
+
+		// Leave the stored credentials untouched when the refresh failed. Writing the empty
+		// access token from a rejected refresh would persist a broken account to the database,
+		// turning a recoverable "reconnect your calendar" state into every subsequent calendar
+		// call failing with a 401.
+		if !RefreshSucceeded(res.TokenResponse) {
+			logger.StdErr.Printf(
+				"Failed to refresh %s access token for %s: %v. The user needs to reconnect this calendar account.\n",
+				res.CalendarType,
+				res.Email,
+				res.TokenResponse.Error,
+			)
 			continue
 		}
 
@@ -228,11 +254,12 @@ func RefreshUserTokenIfNecessary(u *models.User, accounts models.Set[string]) {
 			calendarAccount.OAuth2CalendarAuth.AccessToken = res.TokenResponse.AccessToken
 			calendarAccount.OAuth2CalendarAuth.AccessTokenExpireDate = primitive.NewDateTimeFromTime(accessTokenExpireDate)
 			u.CalendarAccounts[calendarAccountKey] = calendarAccount
+			numAccountsUpdated++
 		}
 	}
 
 	// Update user object if accounts were updated
-	if numAccountsToUpdate > 0 {
+	if numAccountsUpdated > 0 {
 		db.UsersCollection.FindOneAndUpdate(
 			context.Background(),
 			bson.M{"_id": u.Id},

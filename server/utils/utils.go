@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/mail"
 	"os"
 	"regexp"
 	"strings"
@@ -157,6 +158,25 @@ func FalsePtr() *bool {
 // NormalizeEmail returns the email in a canonical form for lookups and storage (trim + ASCII lower).
 func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// IsValidEmail reports whether the string is a plain, single addr-spec (`user@host`) that an
+// external API will accept as an attendee. Guest respondents type their own contact details, so
+// the stored value can be a name or a typo; Google Calendar rejects the whole event creation
+// request with a 400 if any attendee address is malformed.
+func IsValidEmail(email string) bool {
+	email = strings.TrimSpace(email)
+	if len(email) == 0 || strings.ContainsAny(email, " <>,;\"") {
+		return false
+	}
+
+	addr, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+
+	// ParseAddress accepts display-name forms; require the address to be exactly what was given.
+	return addr.Address == email && strings.Count(email, "@") == 1
 }
 
 // GetCalendarAccountKey builds the map key for calendarAccounts. Email-like identifiers are lowercased;

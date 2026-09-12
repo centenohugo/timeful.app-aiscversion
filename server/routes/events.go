@@ -1560,8 +1560,11 @@ func getEventAttendeeEmails(event *models.Event) []string {
 			email = user.Email
 		}
 
-		email = strings.ToLower(strings.TrimSpace(email))
-		if email != "" {
+		// Guest respondents type their contact details themselves, so the stored value may be a
+		// name or a typo. Google rejects the entire event creation request with a 400 if a single
+		// attendee address is malformed, so drop the ones that aren't usable addresses.
+		email = utils.NormalizeEmail(email)
+		if utils.IsValidEmail(email) {
 			emailSet[email] = true
 		}
 	}
@@ -1625,6 +1628,17 @@ func scheduleEvent(c *gin.Context) {
 	auth.RefreshUserTokenIfNecessary(user, accountsToRefresh)
 	account = user.CalendarAccounts[primaryAccountKey]
 
+	// A still-expired (or empty) access token means the refresh was rejected — typically because
+	// the refresh token expired, which Google does after 7 days while the OAuth client's
+	// publishing status is "Testing". Only re-consent fixes that, so tell the client to ask for
+	// it rather than letting the Calendar call fail with an opaque error.
+	if account.OAuth2CalendarAuth == nil ||
+		len(account.OAuth2CalendarAuth.AccessToken) == 0 ||
+		time.Now().After(account.OAuth2CalendarAuth.AccessTokenExpireDate.Time()) {
+		c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
+		return
+	}
+
 	eventIdString := event.Id.Hex()
 	if event.ShortId != nil {
 		eventIdString = *event.ShortId
@@ -1642,6 +1656,25 @@ func scheduleEvent(c *gin.Context) {
 	)
 	if err != nil {
 		logger.StdErr.Println(err)
+
+		if googleErr, ok := err.(*errs.GoogleAPIError); ok {
+			// Google rejected the token itself (expired, revoked, or missing the write scope
+			// despite what we have on file). Re-consent is the only fix, so surface the error the
+			// client already knows how to recover from.
+			if googleErr.Code == http.StatusUnauthorized || googleErr.Code == http.StatusForbidden {
+				c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
+				return
+			}
+
+			// Anything else (a bad timezone, a rejected attendee, a Calendar API that isn't
+			// enabled for the project) is actionable only if we say what Google complained about.
+			c.JSON(http.StatusBadGateway, gin.H{
+				"error":   errs.FailedToCreateCalendarEvent,
+				"message": googleErr.Message,
+			})
+			return
+		}
+
 		c.JSON(http.StatusBadGateway, responses.Error{Error: errs.FailedToCreateCalendarEvent})
 		return
 	}
