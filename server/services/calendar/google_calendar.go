@@ -174,6 +174,18 @@ type CreatedCalendarEvent struct {
 // attendees (sending them an email invite via sendUpdates=all), and requests a Google Meet
 // conference link. Requires an access token granted with the calendar.events (write) scope.
 func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description string, start time.Time, end time.Time, timezone string, attendeeEmails []string) (*CreatedCalendarEvent, error) {
+	// A blank access token means the stored credentials were never refreshed successfully (the
+	// refresh token is expired or revoked). Fail with the same shape Google would return for a
+	// rejected token so callers route the user through re-consent instead of reporting a generic
+	// failure.
+	if len(calendar.AccessToken) == 0 {
+		return nil, &errs.GoogleAPIError{
+			Code:    http.StatusUnauthorized,
+			Message: "no valid Google access token for this account; the user must reconnect their Google Calendar",
+			Status:  "UNAUTHENTICATED",
+		}
+	}
+
 	attendees := make([]map[string]string, 0, len(attendeeEmails))
 	for _, email := range attendeeEmails {
 		attendees = append(attendees, map[string]string{"email": email})

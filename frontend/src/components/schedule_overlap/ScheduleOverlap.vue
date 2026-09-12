@@ -3644,8 +3644,13 @@ export default {
               loginHint: this.authUser?.email,
             })
           } else {
+            // The backend forwards Google's own complaint (bad timezone, rejected attendee,
+            // Calendar API not enabled) when it has one — it's the only actionable detail.
+            const detail = err.parsed?.message
             this.showError(
-              "Failed to schedule the event on Google Calendar. Please try again."
+              detail
+                ? `Failed to schedule the event on Google Calendar: ${detail}`
+                : "Failed to schedule the event on Google Calendar. Please try again."
             )
           }
         } finally {
