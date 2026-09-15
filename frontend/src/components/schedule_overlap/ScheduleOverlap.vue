@@ -187,6 +187,7 @@
                 >
                   <!-- Days -->
                   <div
+                    ref="daysHeader"
                     :class="
                       sampleCalendarEventsByDay
                         ? undefined
@@ -374,6 +375,15 @@
                                 />
                               </div>
                             </div>
+
+                            <!-- Start of a two-tap range selection (touch) -->
+                            <div
+                              v-if="
+                                tapAnchor && tapAnchor.col === d && !dragging
+                              "
+                              class="tw-pointer-events-none tw-absolute tw-w-full tw-animate-pulse tw-rounded-sm tw-border-2 tw-border-solid tw-border-green"
+                              :style="tapAnchorStyle"
+                            ></div>
 
                             <div v-if="isSignUp">
                               <!-- Sign up blocks -->
@@ -875,9 +885,25 @@
         <!-- Fixed bottom section for mobile -->
         <div
           v-if="isPhone && !calendarOnly"
+          ref="mobileBottomSection"
           class="tw-fixed tw-z-20 tw-w-full"
           :style="{ bottom: '4rem' }"
         >
+          <!-- Two-tap range selection prompt (mobile) -->
+          <v-expand-transition>
+            <div v-if="tapAnchor">
+              <div
+                class="tw-flex tw-w-full tw-items-center tw-justify-between tw-gap-2 tw-bg-green tw-py-1 tw-pl-3 tw-pr-1 tw-text-sm tw-text-white"
+              >
+                <div class="tw-flex tw-items-center tw-gap-2">
+                  <v-icon small color="white">mdi-gesture-tap</v-icon>
+                  <div>{{ tapAnchorText }}</div>
+                </div>
+                <v-btn text small dark @click="tapAnchor = null">Cancel</v-btn>
+              </div>
+            </div>
+          </v-expand-transition>
+
           <!-- Hint text (mobile) -->
           <v-expand-transition>
             <template v-if="hintTextShown">
@@ -979,6 +1005,15 @@
         </div>
       </div>
     </Tooltip>
+
+    <!-- Label for the range being selected, floats above the finger (touch) -->
+    <div
+      v-show="touchDragLabel"
+      ref="touchDragLabel"
+      class="tw-pointer-events-none tw-fixed tw-left-0 tw-top-0 tw-z-50 tw-whitespace-nowrap tw-rounded-md tw-bg-very-dark-gray tw-px-2 tw-py-1 tw-text-sm tw-font-medium tw-text-white tw-shadow-lg"
+    >
+      {{ touchDragLabel }}
+    </div>
   </span>
 </template>
 
@@ -1034,6 +1069,9 @@ import {
   prefersStartOnMonday,
   canScheduleEvent,
   signInGoogle,
+  getAutoScrollDelta,
+  exceedsColumnLockThreshold,
+  formatSlotRangeLabel,
 } from "@/utils"
 import {
   authTypes,
@@ -1177,6 +1215,8 @@ export default {
       dragType: "add",
       dragStart: null,
       dragCur: null,
+      tapAnchor: null, // First tap of a two-tap range selection on touch devices, in the form {row, col, dragType}
+      touchDragging: false, // Whether the current drag was started with a finger
 
       /* Variables for options */
       curTimezone: this.initialTimezone,
@@ -1720,6 +1760,57 @@ export default {
       style.height = `calc(${height} * ${this.timeslotHeight}px)`
       return style
     },
+    /** Whether tapping two timeslots selects the range between them (touch devices only) */
+    tapRangeEnabled() {
+      return (
+        !this.event.daysOnly &&
+        (this.state === this.states.EDIT_AVAILABILITY ||
+          this.state === this.states.SET_SPECIFIC_TIMES)
+      )
+    },
+    tapAnchorStyle() {
+      if (!this.tapAnchor) return {}
+      const { row } = this.tapAnchor
+      const gap = row >= this.splitTimes[0].length ? this.SPLIT_GAP_HEIGHT : 0
+      return {
+        top: `${row * this.timeslotHeight + gap}px`,
+        height: `${this.timeslotHeight}px`,
+      }
+    },
+    tapAnchorText() {
+      if (!this.tapAnchor) return ""
+      const { row, col, dragType } = this.tapAnchor
+      const start = `${this.getDayLabel(col)} ${this.getRowTimeText(row)}`
+      return dragType === this.DRAG_TYPES.REMOVE
+        ? `From ${start} — tap the end slot to clear`
+        : `From ${start} — tap the end slot to fill`
+    },
+    /** Label for the range currently being selected with a finger */
+    touchDragLabel() {
+      if (!this.touchDragging || this.event.daysOnly) return ""
+      if (!this.dragStart || !this.dragCur) return ""
+
+      let startRow, endRow, startCol, endCol
+      if (this.tapRangeEnabled) {
+        startRow = Math.min(this.dragStart.row, this.dragCur.row)
+        endRow = Math.max(this.dragStart.row, this.dragCur.row)
+        startCol = Math.min(this.dragStart.col, this.dragCur.col)
+        endCol = Math.max(this.dragStart.col, this.dragCur.col)
+      } else {
+        // Scheduling an event / sign up blocks only use the starting day, dragging downwards
+        if (this.dragCur.row < this.dragStart.row) return ""
+        startRow = this.dragStart.row
+        endRow = this.dragCur.row
+        startCol = endCol = this.dragStart.col
+      }
+
+      return formatSlotRangeLabel({
+        startDay: this.getDayLabel(startCol),
+        endDay: this.getDayLabel(endCol),
+        startTime: this.getRowTimeText(startRow),
+        endTime: this.getRowTimeText(endRow, true),
+      })
+    },
     signUpBlockBeingDraggedStyle() {
       const style = {}
       let top = 0,
@@ -2077,13 +2168,16 @@ export default {
       if (this.isPhone) {
         switch (this.state) {
           case this.isGroup && this.states.EDIT_AVAILABILITY:
-            return "Toggle which calendars are used. Tap and drag to edit your availability."
+            return "Toggle which calendars are used. Tap a start and end time, or drag, to edit your availability."
           case this.states.EDIT_AVAILABILITY:
             const daysOrTimes = this.event.daysOnly ? "days" : "times"
+            const gesture = this.event.daysOnly
+              ? "Tap and drag"
+              : "Tap a start and end time, or drag,"
             if (this.availabilityType === availabilityTypes.IF_NEEDED) {
-              return `Tap and drag to add your "if needed" ${daysOrTimes} in yellow.`
+              return `${gesture} to add your "if needed" ${daysOrTimes} in yellow.`
             }
-            return `Tap and drag to add your "available" ${daysOrTimes} in green.`
+            return `${gesture} to add your "available" ${daysOrTimes} in green.`
           case this.states.SCHEDULE_EVENT:
             return "Tap and drag on the calendar to schedule a Google Calendar event during those times."
           default:
@@ -3736,9 +3830,20 @@ export default {
       }
     },
     endDrag() {
+      const touchGesture = this.endTouchGesture()
       if (!this.allowDrag) return
 
       if (!this.dragStart || !this.dragCur) return
+
+      // A tap (finger never left the first timeslot) becomes the start of a two-tap range selection
+      const tapAnchor =
+        touchGesture &&
+        !touchGesture.movedCell &&
+        !touchGesture.usedAnchor &&
+        !touchGesture.tappedAnchor &&
+        this.tapRangeEnabled
+          ? { ...this.dragStart, dragType: this.dragType }
+          : null
 
       // Update availability set based on drag region
       if (
@@ -3883,6 +3988,7 @@ export default {
       this.dragging = false
       this.dragStart = null
       this.dragCur = null
+      this.tapAnchor = tapAnchor
     },
     inDragRange(row, col) {
       /* Returns whether the given row and col is within the drag range */
@@ -3930,10 +4036,22 @@ export default {
       if (!this.dragStart) return
 
       e.preventDefault()
-      let { row, col } = this.getRowColFromXY(
+      if (this._touchGesture && e.touches) {
+        const { clientX, clientY } = e.touches[0]
+        this._touchGesture.clientX = clientX
+        this._touchGesture.clientY = clientY
+        this.updateTouchDragCur()
+        this.positionTouchDragLabel()
+        return
+      }
+
+      const { row, col } = this.getRowColFromXY(
         ...Object.values(this.normalizeXY(e))
       )
-
+      this.setDragCur(row, col)
+    },
+    /** Sets the current drag position, applying the constraints of the current state */
+    setDragCur(row, col) {
       if (
         this.maxSignUpBlockRowSize &&
         row >= this.dragStart.row + this.maxSignUpBlockRowSize
@@ -3946,6 +4064,7 @@ export default {
         }
       }
 
+      if (row === this.dragCur?.row && col === this.dragCur?.col) return
       this.dragCur = { row, col }
     },
     startDrag(e) {
@@ -4004,6 +4123,180 @@ export default {
       } else {
         this.dragType = this.DRAG_TYPES.ADD
       }
+
+      if (e.touches) this.startTouchGesture(e, row, col)
+    },
+    /** Starts the touch-only helpers: two-tap range selection, column lock, auto-scroll and the range label */
+    startTouchGesture(e, row, col) {
+      const { clientX, clientY } = e.touches[0]
+      // Non-reactive on purpose: updated on every touchmove
+      this._touchGesture = {
+        startX: clientX,
+        clientX,
+        clientY,
+        lockedCol: col,
+        colUnlocked: false,
+        movedCell: false,
+        usedAnchor: false,
+        tappedAnchor: false,
+      }
+
+      // Second tap of a two-tap range selection: select from the first tap to here.
+      // Tapping the first tap again just toggles it back and leaves range selection.
+      const anchor = this.tapAnchor
+      if (anchor && this.tapRangeEnabled) {
+        if (anchor.row === row && anchor.col === col) {
+          this._touchGesture.tappedAnchor = true
+        } else {
+          this.dragStart = { row: anchor.row, col: anchor.col }
+          this.dragType = anchor.dragType
+          this._touchGesture.usedAnchor = true
+        }
+      }
+      this.tapAnchor = null
+
+      this.touchDragging = true
+      this.$nextTick(() => this.positionTouchDragLabel())
+      this.startAutoScroll()
+    },
+    /** Stops the touch-only helpers and returns the finished gesture (null if the drag wasn't a touch drag) */
+    endTouchGesture() {
+      const gesture = this._touchGesture ?? null
+      this._touchGesture = null
+      this.touchDragging = false
+      this.stopAutoScroll()
+      return gesture
+    },
+    /** Updates dragCur from the finger position, keeping the drag within one day until the finger clearly moves sideways */
+    updateTouchDragCur() {
+      const gesture = this._touchGesture
+      const dragSection = document.getElementById("drag-section")
+      if (!gesture || !dragSection || !this.dragCur) return
+
+      const { left, top } = dragSection.getBoundingClientRect()
+      let { row, col } = this.getRowColFromXY(
+        gesture.clientX - left,
+        gesture.clientY - top
+      )
+
+      if (!this.event.daysOnly && !gesture.colUnlocked) {
+        if (
+          exceedsColumnLockThreshold(
+            gesture.clientX - gesture.startX,
+            this.timeslot.width
+          )
+        ) {
+          gesture.colUnlocked = true
+        } else {
+          col = gesture.lockedCol
+        }
+      }
+
+      if (row !== this.dragCur.row || col !== this.dragCur.col) {
+        gesture.movedCell = true
+      }
+      this.setDragCur(row, col)
+    },
+    /** Moves the range label so it floats just above the finger */
+    positionTouchDragLabel() {
+      const gesture = this._touchGesture
+      const el = this.$refs.touchDragLabel
+      if (!gesture || !el) return
+
+      const margin = 8
+      const x = clamp(
+        gesture.clientX - el.offsetWidth / 2,
+        margin,
+        Math.max(margin, window.innerWidth - el.offsetWidth - margin)
+      )
+      const y = Math.max(gesture.clientY - el.offsetHeight - 56, margin)
+      el.style.transform = `translate3d(${x}px, ${y}px, 0)`
+    },
+    /** Returns the vertical client bounds of the grid area not covered by the sticky day header or the mobile bottom bar */
+    getVisibleGridBounds() {
+      let top = 0
+      let bottom = window.innerHeight
+      if (this.$refs.daysHeader) {
+        top = Math.max(
+          top,
+          this.$refs.daysHeader.getBoundingClientRect().bottom
+        )
+      }
+      if (this.$refs.mobileBottomSection) {
+        bottom = Math.min(
+          bottom,
+          this.$refs.mobileBottomSection.getBoundingClientRect().top
+        )
+      }
+      return { top, bottom }
+    },
+    /** While dragging with a finger, scrolls the page when the finger is held near the top or bottom edge */
+    startAutoScroll() {
+      this.stopAutoScroll()
+      // html has `scroll-behavior: smooth`, which would turn every per-frame scrollBy into a competing animation
+      document.documentElement.style.scrollBehavior = "auto"
+
+      const step = () => {
+        const gesture = this._touchGesture
+        const dragSection = document.getElementById("drag-section")
+        if (!gesture || !dragSection) return
+
+        const { top, bottom } = this.getVisibleGridBounds()
+        let delta = getAutoScrollDelta(gesture.clientY, top, bottom)
+
+        // Only scroll while there's more of the grid hidden in that direction
+        const gridRect = dragSection.getBoundingClientRect()
+        if (
+          (delta < 0 && gridRect.top >= top) ||
+          (delta > 0 && gridRect.bottom <= bottom)
+        ) {
+          delta = 0
+        }
+
+        if (delta !== 0) {
+          const prevScrollY = window.scrollY
+          window.scrollBy(0, delta)
+          if (window.scrollY !== prevScrollY) {
+            this.updateTouchDragCur()
+            this.positionTouchDragLabel()
+          }
+        }
+        this._autoScrollFrame = requestAnimationFrame(step)
+      }
+      this._autoScrollFrame = requestAnimationFrame(step)
+    },
+    stopAutoScroll() {
+      if (!this._autoScrollFrame) return
+      cancelAnimationFrame(this._autoScrollFrame)
+      this._autoScrollFrame = null
+      document.documentElement.style.scrollBehavior = ""
+    },
+    /** Returns the label of the visible day at the given column, e.g. "Mon" */
+    getDayLabel(col) {
+      const day = this.days[col]
+      if (!day) return ""
+      return this.isSpecificDates || this.isGroup
+        ? `${day.dayText} ${day.dateString}`
+        : day.dayText
+    },
+    /** Returns the time at the start (or end) of the timeslot at the given row, e.g. "9:30 am" */
+    getRowTimeText(row, end = false) {
+      const time =
+        row < this.splitTimes[0].length
+          ? this.splitTimes[0][row]
+          : this.splitTimes[1][row - this.splitTimes[0].length]
+      if (!time) return ""
+
+      const hoursOffset =
+        time.hoursOffset + (end ? this.timeslotDuration / 60 : 0)
+      const timeNum =
+        this.state === this.states.SET_SPECIFIC_TIMES
+          ? hoursOffset % 24
+          : utcTimeToLocalTime(
+              this.event.startTime + hoursOffset,
+              this.timezoneOffset
+            )
+      return timeNumToTimeText(timeNum, this.timeType === timeTypes.HOUR12)
     },
     //#endregion
 
@@ -4453,6 +4746,7 @@ export default {
     },
     state(nextState, prevState) {
       this.$nextTick(() => this.checkElementsVisible())
+      this.tapAnchor = null
 
       // Reset scheduled event when exiting schedule event state
       if (prevState === this.states.SCHEDULE_EVENT) {
@@ -4493,6 +4787,7 @@ export default {
       }
     },
     page() {
+      this.tapAnchor = null
       this.$nextTick(() => {
         this.setTimeslotSize()
       })
@@ -4521,6 +4816,7 @@ export default {
     mobileNumDays() {
       // Save mobile num days in localstorage
       localStorage["mobileNumDays"] = this.mobileNumDays
+      this.tapAnchor = null
 
       // Set timeslot size because it has changed
       this.$nextTick(() => {
@@ -4528,6 +4824,7 @@ export default {
       })
     },
     weekOffset() {
+      this.tapAnchor = null
       if (this.event.type === eventTypes.GROUP) {
         this.fetchResponses()
       }
@@ -4670,6 +4967,7 @@ export default {
     removeEventListener("click", this.deselectRespondents)
     removeEventListener("resize", this.onResize)
     removeEventListener("scroll", this.onScroll)
+    this.stopAutoScroll()
     if (this._resizeObserver) {
       this._resizeObserver.disconnect()
     }
