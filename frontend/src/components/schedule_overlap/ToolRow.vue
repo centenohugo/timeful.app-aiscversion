@@ -14,7 +14,9 @@
         <!-- Select timezone -->
         <div v-if="!event.daysOnly" class="tw-flex tw-items-center tw-gap-2">
           <TimezoneSelector
+            ref="timezoneSelector"
             class="tw-w-full sm:tw-w-[unset]"
+            label="Times shown in"
             :value="curTimezone"
             :reference-date="timezoneReferenceDate"
             @input="(val) => $emit('update:curTimezone', val)"
@@ -117,17 +119,43 @@
         </template>
       </div>
     </div>
+
+    <!-- Explains which timezone the times are in -->
+    <div
+      v-if="timezoneNotice"
+      class="-tw-mt-2 tw-mb-3 tw-flex tw-flex-wrap tw-items-center tw-justify-center tw-gap-x-2 tw-gap-y-1 tw-text-xs tw-text-very-dark-gray sm:tw-justify-start"
+    >
+      <v-icon x-small>mdi-earth</v-icon>
+      <span>{{ timezoneNotice.text }}</span>
+      <button
+        class="tw-font-medium tw-text-green hover:tw-underline"
+        @click="switchTimezone(timezoneNotice.target)"
+      >
+        {{ timezoneNotice.action }}
+      </button>
+    </div>
   </div>
 </template>
 
 <script>
 import TimezoneSelector from "./TimezoneSelector.vue"
 import GCalWeekSelector from "./GCalWeekSelector.vue"
-import { isPhone, canScheduleEvent } from "@/utils"
+import {
+  isPhone,
+  canScheduleEvent,
+  getTimezoneOption,
+  getLocalTimezoneOption,
+  getLocalTimezoneCity,
+} from "@/utils"
 import ExpandableSection from "../ExpandableSection.vue"
 import EventOptions from "./EventOptions.vue"
 import { timeTypes } from "@/constants"
 import { mapState } from "vuex"
+import dayjs from "dayjs"
+import utcPlugin from "dayjs/plugin/utc"
+import timezonePlugin from "dayjs/plugin/timezone"
+dayjs.extend(utcPlugin)
+dayjs.extend(timezonePlugin)
 
 export default {
   name: "ToolRow",
@@ -178,6 +206,58 @@ export default {
     canSchedule() {
       return canScheduleEvent(this.event, this.authUser?._id)
     },
+    /**
+     * Tells viewers whether the times are in their own timezone and, if the organizer
+     * picked the times in another one, lets them switch between both.
+     * Returns { text, action, target } or null when there's nothing worth saying
+     */
+    timezoneNotice() {
+      if (this.event.daysOnly || !this.curTimezone?.value) return null
+
+      const referenceDate = this.timezoneReferenceDate ?? new Date()
+      const offsetOf = (value) => dayjs(referenceDate).tz(value).utcOffset()
+
+      const local = getLocalTimezoneOption(referenceDate)
+      if (!local) return null
+      const city = getLocalTimezoneCity()
+      const curOffset = offsetOf(this.curTimezone.value)
+      const viewingLocal = curOffset === local.offset
+
+      const organizer =
+        this.event.timezone &&
+        getTimezoneOption(this.event.timezone, referenceDate)
+      const organizerIsElsewhere = organizer && organizer.offset !== local.offset
+
+      if (!organizerIsElsewhere) {
+        if (viewingLocal) return null
+        return {
+          text: `These times aren't in your time zone (${city}).`,
+          action: "Show in my time zone",
+          target: "local",
+        }
+      }
+
+      const organizerName = `${organizer.gmtString} ${organizer.label}`
+      if (viewingLocal) {
+        return {
+          text: `Shown in your time zone (${city}). The organizer set this event in ${organizerName}.`,
+          action: "See the organizer's times",
+          target: organizer,
+        }
+      }
+      if (curOffset === organizer.offset) {
+        return {
+          text: `Shown in the organizer's time zone, not yours (${city}).`,
+          action: "Show in my time zone",
+          target: "local",
+        }
+      }
+      return {
+        text: `These times aren't in your time zone (${city}). The organizer set this event in ${organizerName}.`,
+        action: "Show in my time zone",
+        target: "local",
+      }
+    },
     showScheduleEventButton() {
       return (
         !this.event.daysOnly &&
@@ -185,6 +265,17 @@ export default {
         this.state !== this.states.EDIT_AVAILABILITY &&
         this.canSchedule
       )
+    },
+  },
+
+  methods: {
+    /** Switches to "local" (also forgetting the saved preference) or to the given timezone for this visit */
+    switchTimezone(target) {
+      if (target === "local") {
+        this.$refs.timezoneSelector.resetTimezone()
+      } else {
+        this.$emit("update:curTimezone", target)
+      }
     },
   },
 }

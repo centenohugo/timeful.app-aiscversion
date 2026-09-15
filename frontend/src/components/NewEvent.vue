@@ -100,6 +100,21 @@
                 </div>
               </v-expand-transition>
               <div class="tw-mb-2">
+                <TimezoneSelector
+                  v-model="timezone"
+                  label="Time zone"
+                  :persist="false"
+                  :reference-date="timezoneReferenceDate"
+                  class="tw-w-fit"
+                />
+                <div
+                  v-if="!specificTimesEnabled && localTimeRangeText"
+                  class="tw-mt-1 tw-text-xs tw-text-dark-gray"
+                >
+                  {{ localTimeRangeText }}
+                </div>
+              </div>
+              <div class="tw-mb-2">
                 <v-checkbox
                   v-model="specificTimesEnabled"
                   messages="Specify the times in the next step"
@@ -232,20 +247,27 @@
 </template>
 
 <script>
-import { eventTypes, dayIndexToDayString } from "@/constants"
+import { eventTypes, dayIndexToDayString, timeTypes } from "@/constants"
 import {
   post,
   put,
   timeNumToTimeString,
+  timeNumToTimeText,
   dateToTimeNum,
   getISODateString,
   isPhone,
   getDateWithTimezone,
   getTimeOptions,
+  getTimezoneOption,
+  getLocalTimezoneOption,
+  getLocalTimezoneCity,
+  convertTimeRangeToTimezone,
+  userPrefers12h,
   addEventToCreatedList,
   prefersStartOnMonday,
 } from "@/utils"
 import { mapActions, mapState } from "vuex"
+import TimezoneSelector from "./schedule_overlap/TimezoneSelector.vue"
 import HelpDialog from "./HelpDialog.vue"
 import DatePicker from "@/components/DatePicker.vue"
 import SlideToggle from "./SlideToggle.vue"
@@ -272,6 +294,7 @@ export default {
   },
 
   components: {
+    TimezoneSelector,
     HelpDialog,
     DatePicker,
     SlideToggle,
@@ -289,6 +312,10 @@ export default {
     selectedDays: [],
     selectedDaysOfWeek: [],
     startOnMonday: prefersStartOnMonday(),
+
+    // Timezone the selected days / times are in. Starts at the browser's timezone,
+    // independent of the "Shown in" viewing preference
+    timezone: getLocalTimezoneOption(),
 
     daysOnly: false,
     daysOnlyOptions: Object.freeze([
@@ -347,19 +374,53 @@ export default {
           selectedDays.length > 0 || "Please select at least one day",
       ]
     },
-    /**
-     * IANA timezone the selected days / times are interpreted in. Mirrors how
-     * TimezoneSelector resolves it, since the form no longer shows the picker.
-     */
+    /** IANA timezone the selected days / times are interpreted in */
     eventTimezone() {
-      if (localStorage["timezone"]) {
-        try {
-          return JSON.parse(localStorage["timezone"]).value
-        } catch {
-          // Fall back to the local timezone below
-        }
+      return this.timezone?.value || dayjs.tz.guess()
+    },
+    /** First selected date (e.g. "2026-09-20"), used to resolve DST offsets */
+    firstSelectedDay() {
+      if (
+        this.selectedDateOption !== this.dateOptions.SPECIFIC ||
+        this.selectedDays.length === 0
+      ) {
+        return null
       }
-      return dayjs.tz.guess()
+      return [...this.selectedDays].sort()[0]
+    },
+    timezoneReferenceDate() {
+      return this.firstSelectedDay
+        ? new Date(`${this.firstSelectedDay}T12:00:00Z`)
+        : null
+    },
+    /** e.g. "= 3 pm – 11 pm in your time zone (Madrid)" when the event timezone isn't the user's */
+    localTimeRangeText() {
+      const localTimezone = dayjs.tz.guess()
+      const { startTime, endTime, dayOffset } = convertTimeRangeToTimezone(
+        this.firstSelectedDay ?? dayjs().format("YYYY-MM-DD"),
+        this.startTime,
+        this.endTime,
+        this.eventTimezone,
+        localTimezone
+      )
+      if (
+        startTime === this.startTime &&
+        endTime === this.endTime &&
+        dayOffset === 0
+      ) {
+        return ""
+      }
+
+      const hour12 = !localStorage["timeType"]
+        ? userPrefers12h()
+        : localStorage["timeType"] === timeTypes.HOUR12
+      let text = `= ${timeNumToTimeText(startTime, hour12)} – ${timeNumToTimeText(
+        endTime,
+        hour12
+      )} in your time zone (${getLocalTimezoneCity()})`
+      if (dayOffset > 0) text += ", starting the next day"
+      else if (dayOffset < 0) text += ", starting the previous day"
+      return text
     },
     times() {
       return getTimeOptions()
@@ -401,6 +462,7 @@ export default {
       this.sendEmailAfterXResponses = 3
       this.collectEmails = false
       this.startOnMonday = prefersStartOnMonday()
+      this.timezone = getLocalTimezoneOption()
 
       this.$refs.form.resetValidation()
     },
@@ -481,6 +543,7 @@ export default {
         collectEmails: this.collectEmails,
         startOnMonday: this.startOnMonday,
         timeIncrement: this.timeIncrement,
+        timezone: this.daysOnly ? undefined : this.eventTimezone,
       }
 
       if (!this.edit) {
@@ -494,6 +557,11 @@ export default {
               name: "event",
               params: {
                 eventId: shortId ?? eventId,
+                // Specific times are picked in the next step, so keep showing
+                // the timezone the organizer chose here
+                ...(this.specificTimesEnabled && {
+                  initialTimezone: this.timezone,
+                }),
               },
             })
 
@@ -539,14 +607,51 @@ export default {
       }
     },
 
+    /** Returns the timezone the event's days / times should be edited in */
+    getTimezoneForEvent() {
+      const referenceDate =
+        this.event.type === eventTypes.SPECIFIC_DATES
+          ? new Date(this.event.dates[0])
+          : new Date()
+
+      let timezone = this.event.timezone
+      if (!timezone && localStorage["timezone"]) {
+        // Events created before timezones were stored were shown in this timezone
+        try {
+          timezone = JSON.parse(localStorage["timezone"]).value
+        } catch {
+          // Fall back to the local timezone below
+        }
+      }
+
+      return (
+        (timezone && getTimezoneOption(timezone, referenceDate)) ||
+        getLocalTimezoneOption(referenceDate)
+      )
+    },
+    /**
+     * Returns the date shifted by the event timezone's offset, so its UTC fields
+     * are the date / time in that timezone
+     */
+    getDateInEventTimezone(date) {
+      if (!this.event.timezone) return getDateWithTimezone(date)
+
+      // DOW dates are stored in 2018, so use the current offset like submit() does
+      const offset =
+        this.event.type === eventTypes.DOW
+          ? dayjs().tz(this.event.timezone).utcOffset()
+          : dayjs(date).tz(this.event.timezone).utcOffset()
+      return new Date(new Date(date).getTime() + offset * 60 * 1000)
+    },
     /** Populates the form fields based on this.event */
     updateFieldsFromEvent() {
       if (this.event) {
         this.name = this.event.name
+        this.timezone = this.getTimezoneForEvent()
 
         // Set start time, accounting for the timezone
         this.startTime = Math.floor(
-          dateToTimeNum(getDateWithTimezone(this.event.dates[0]), true)
+          dateToTimeNum(this.getDateInEventTimezone(this.event.dates[0]), true)
         )
         this.startTime %= 24
 
@@ -579,7 +684,7 @@ export default {
             this.selectedDateOption = this.dateOptions.SPECIFIC
             const selectedDays = []
             for (let date of this.event.dates) {
-              date = getDateWithTimezone(date)
+              date = this.getDateInEventTimezone(date)
 
               selectedDays.push(getISODateString(date, true))
             }
@@ -588,7 +693,7 @@ export default {
             this.selectedDateOption = this.dateOptions.DOW
             const selectedDaysOfWeek = []
             for (let date of this.event.dates) {
-              date = getDateWithTimezone(date)
+              date = this.getDateInEventTimezone(date)
 
               if (this.event.startOnMonday && date.getUTCDay() === 0) {
                 selectedDaysOfWeek.push(7)
@@ -618,6 +723,7 @@ export default {
         selectedDaysOfWeek: this.selectedDaysOfWeek,
         selectedDateOption: this.selectedDateOption,
         startOnMonday: this.startOnMonday,
+        timezone: this.timezone?.value,
       }
     },
     hasEventBeenEdited() {
@@ -633,7 +739,8 @@ export default {
         JSON.stringify(this.selectedDaysOfWeek) !==
           JSON.stringify(this.initialEventData.selectedDaysOfWeek) ||
         this.daysOnly !== this.initialEventData.daysOnly ||
-        this.startOnMonday !== this.initialEventData.startOnMonday
+        this.startOnMonday !== this.initialEventData.startOnMonday ||
+        this.timezone?.value !== this.initialEventData.timezone
       )
     },
   },
