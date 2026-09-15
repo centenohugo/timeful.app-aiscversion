@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
+  convertTimeRangeToTimezone,
   getScheduleTimezoneOffset,
   getSpecificTimesDayStarts,
   getTimezoneOffsetForDate,
+  getTimezoneOption,
   getTimezoneReferenceDateForEvent,
 } from "./date_utils"
 import { eventTypes } from "../constants"
@@ -205,5 +207,85 @@ describe("specific-times DST regression", () => {
       "2026-11-02T08:00:00.000Z",
       "2026-11-03T08:00:00.000Z",
     ])
+  })
+})
+
+describe("timezone options", () => {
+  it("uses the offset the timezone has at the reference date", () => {
+    expect(
+      getTimezoneOption("America/New_York", new Date("2026-01-15T12:00:00Z"))
+    ).toEqual({
+      value: "America/New_York",
+      label: "Eastern Time",
+      gmtString: "(GMT-5:00)",
+      offset: -300,
+    })
+    expect(
+      getTimezoneOption("America/New_York", new Date("2026-07-15T12:00:00Z"))
+        .offset
+    ).toBe(-240)
+  })
+
+  it("returns null for timezones that aren't selectable", () => {
+    expect(getTimezoneOption("Mars/Olympus_Mons")).toBeNull()
+  })
+})
+
+describe("convertTimeRangeToTimezone", () => {
+  it("converts the organizer's range into another timezone", () => {
+    expect(
+      convertTimeRangeToTimezone(
+        "2026-09-20",
+        9,
+        17,
+        "America/New_York",
+        "Europe/Madrid"
+      )
+    ).toEqual({ startTime: 15, endTime: 23, dayOffset: 0 })
+  })
+
+  it("reports when the range starts on a different day", () => {
+    expect(
+      convertTimeRangeToTimezone(
+        "2026-09-20",
+        18,
+        22,
+        "America/New_York",
+        "Asia/Tokyo"
+      )
+    ).toEqual({ startTime: 7, endTime: 11, dayOffset: 1 })
+    expect(
+      convertTimeRangeToTimezone(
+        "2026-09-20",
+        7,
+        11,
+        "Asia/Tokyo",
+        "America/New_York"
+      )
+    ).toEqual({ startTime: 18, endTime: 22, dayOffset: -1 })
+  })
+
+  it("handles ranges that end at midnight", () => {
+    expect(
+      convertTimeRangeToTimezone(
+        "2026-09-20",
+        9,
+        0,
+        "Europe/Madrid",
+        "America/New_York"
+      )
+    ).toEqual({ startTime: 3, endTime: 18, dayOffset: 0 })
+  })
+
+  it("handles half-hour offsets", () => {
+    expect(
+      convertTimeRangeToTimezone(
+        "2026-01-15",
+        9,
+        17,
+        "Europe/London",
+        "Asia/Kolkata"
+      )
+    ).toEqual({ startTime: 14.5, endTime: 22.5, dayOffset: 0 })
   })
 })

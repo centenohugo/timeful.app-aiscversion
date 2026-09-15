@@ -3,6 +3,7 @@ import {
   timeTypes,
   dayIndexToDayString,
   calendarTypes,
+  allTimezones,
 } from "@/constants"
 import { get } from "./fetch_utils"
 import { isBetween } from "./general_utils"
@@ -232,6 +233,112 @@ export const getScheduleTimezoneOffset = (
     getTimezoneReferenceDateForEvent(event, weekOffset)
   )
 }
+
+/**
+ * Returns the selectable option ({ value, label, gmtString, offset }) for an IANA
+ * timezone listed in allTimezones, with the offset it has at referenceDate
+ */
+export const getTimezoneOption = (value, referenceDate = new Date()) => {
+  if (!(value in allTimezones)) return null
+
+  const min = dayjs(referenceDate).tz(value).utcOffset()
+  const hr = `${(min / 60) ^ 0}:${min % 60 === 0 ? "00" : Math.abs(min % 60)}`
+  return {
+    value,
+    label: allTimezones[value],
+    gmtString: `(GMT${hr.includes("-") ? hr : `+${hr}`})`,
+    offset: min,
+  }
+}
+
+/** Returns all selectable timezone options, sorted by offset */
+export const getTimezoneOptions = (referenceDate = new Date()) => {
+  // Source: https://github.com/ndom91/react-timezone-select/blob/main/src/index.tsx
+  return Object.keys(allTimezones)
+    .map((value) => {
+      try {
+        return getTimezoneOption(value, referenceDate)
+      } catch (e) {
+        console.error(e)
+        return null
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.offset - b.offset)
+}
+
+/** Returns the timezone option that matches the browser's timezone */
+export const getLocalTimezoneOption = (
+  referenceDate = new Date(),
+  timezones = getTimezoneOptions(referenceDate)
+) => {
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+  // Step 1: Exact match on spacetime-canonical name
+  let timezoneObject = timezones.find((t) => t.value === localTimezone)
+
+  if (!timezoneObject) {
+    // Step 2: Match by offsets at two reference dates (Jan + Jul)
+    // Distinguishes DST-observing zones from non-DST zones that share
+    // the same current offset (e.g. Europe/Belgrade vs Africa/Casablanca)
+    const janOffset = dayjs.tz("2024-01-15 12:00", localTimezone).utcOffset()
+    const julOffset = dayjs.tz("2024-07-15 12:00", localTimezone).utcOffset()
+
+    timezoneObject = timezones.find((t) => {
+      const tJan = dayjs.tz("2024-01-15 12:00", t.value).utcOffset()
+      const tJul = dayjs.tz("2024-07-15 12:00", t.value).utcOffset()
+      return tJan === janOffset && tJul === julOffset
+    })
+  }
+
+  if (!timezoneObject) {
+    // Step 3: Final fallback — current offset only
+    const offset = dayjs(referenceDate).tz(localTimezone).utcOffset()
+    timezoneObject = timezones.find((t) => t.offset === offset)
+  }
+
+  return timezoneObject
+}
+
+/** Returns the city of the browser's timezone, e.g. "Madrid" for Europe/Madrid */
+export const getLocalTimezoneCity = () => {
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return localTimezone.split("/").pop().replace(/_/g, " ")
+}
+
+/**
+ * Converts the time range startTime-endTime (timeNums) on isoDate (e.g. "2026-09-20")
+ * from one IANA timezone to another. Returns { startTime, endTime, dayOffset }, where
+ * dayOffset is the number of days the start moves (e.g. 1 if it starts the next day)
+ */
+export const convertTimeRangeToTimezone = (
+  isoDate,
+  startTime,
+  endTime,
+  fromTimezone,
+  toTimezone
+) => {
+  let duration = endTime - startTime
+  if (duration <= 0) duration += 24
+
+  const start = dayjs.tz(
+    `${isoDate} ${timeNumToTimeString(startTime)}`,
+    fromTimezone
+  )
+  const convertedStart = start.tz(toTimezone)
+  const convertedEnd = dayjs(start.valueOf() + duration * 60 * 60 * 1000).tz(
+    toTimezone
+  )
+
+  return {
+    startTime: convertedStart.hour() + convertedStart.minute() / 60,
+    endTime: convertedEnd.hour() + convertedEnd.minute() / 60,
+    dayOffset: dayjs
+      .utc(convertedStart.format("YYYY-MM-DD"))
+      .diff(dayjs.utc(isoDate), "day"),
+  }
+}
+
 const getDateInTimezone = (date, curTimezone) => {
   if (curTimezone?.value) {
     return dayjs(date).tz(curTimezone.value)

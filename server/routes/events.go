@@ -61,7 +61,7 @@ func InitEvents(router *gin.RouterGroup) {
 // @Tags events
 // @Accept json
 // @Produce json
-// @Param payload body object{name=string,duration=float32,dates=[]string,type=models.EventType,isSignUpForm=bool,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,when2meetHref=string,timeIncrement=int,attendees=[]string} true "Object containing info about the event to create"
+// @Param payload body object{name=string,duration=float32,dates=[]string,type=models.EventType,isSignUpForm=bool,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,when2meetHref=string,timeIncrement=int,timezone=string,attendees=[]string} true "Object containing info about the event to create"
 // @Success 201 {object} object{eventId=string}
 // @Router /events [post]
 func createEvent(c *gin.Context) {
@@ -93,6 +93,7 @@ func createEvent(c *gin.Context) {
 		When2meetHref            *string  `json:"when2meetHref"`
 		CollectEmails            *bool    `json:"collectEmails"`
 		TimeIncrement            *int     `json:"timeIncrement"`
+		Timezone                 *string  `json:"timezone"`
 
 		// Only for availability groups
 		Attendees []string `json:"attendees"`
@@ -126,6 +127,7 @@ func createEvent(c *gin.Context) {
 		When2meetHref:            payload.When2meetHref,
 		CollectEmails:            payload.CollectEmails,
 		TimeIncrement:            payload.TimeIncrement,
+		Timezone:                 validTimezoneOrNil(payload.Timezone),
 		Type:                     payload.Type,
 		SignUpResponses:          make(map[string]*models.SignUpResponse),
 		NumResponses:             &numResponses,
@@ -163,11 +165,22 @@ func createEvent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"eventId": insertedId, "shortId": event.ShortId})
 }
 
+// Returns the given timezone if it's a valid IANA timezone name, nil otherwise
+func validTimezoneOrNil(timezone *string) *string {
+	if timezone == nil || *timezone == "" {
+		return nil
+	}
+	if _, err := time.LoadLocation(*timezone); err != nil {
+		return nil
+	}
+	return timezone
+}
+
 // @Summary Edits an event based on its id
 // @Tags events
 // @Produce json
 // @Param eventId path string true "Event ID"
-// @Param payload body object{name=string,description=string,duration=float32,dates=[]string,type=models.EventType,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,attendees=[]string} true "Object containing info about the event to update"
+// @Param payload body object{name=string,description=string,duration=float32,dates=[]string,type=models.EventType,signUpBlocks=[]models.SignUpBlock,notificationsEnabled=bool,blindAvailabilityEnabled=bool,daysOnly=bool,remindees=[]string,sendEmailAfterXResponses=int,timezone=string,attendees=[]string} true "Object containing info about the event to update"
 // @Success 200
 // @Router /events/{eventId} [put]
 func editEvent(c *gin.Context) {
@@ -196,6 +209,7 @@ func editEvent(c *gin.Context) {
 		Remindees                []string `json:"remindees"`
 		SendEmailAfterXResponses *int     `json:"sendEmailAfterXResponses"`
 		CollectEmails            *bool    `json:"collectEmails"`
+		Timezone                 *string  `json:"timezone"`
 
 		// Only for availability groups
 		Attendees []string `json:"attendees"`
@@ -246,6 +260,10 @@ func editEvent(c *gin.Context) {
 	event.SendEmailAfterXResponses = payload.SendEmailAfterXResponses
 	event.CollectEmails = payload.CollectEmails
 	event.Type = payload.Type
+	// Only overwrite when sent, so clients that don't know about timezones keep the stored one
+	if payload.Timezone != nil {
+		event.Timezone = validTimezoneOrNil(payload.Timezone)
+	}
 
 	// Update attendees
 	if event.Type == models.GROUP {

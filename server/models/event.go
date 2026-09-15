@@ -83,6 +83,9 @@ type Event struct {
 	// Whether to only poll for days, not times
 	DaysOnly *bool `json:"daysOnly" bson:"daysOnly,omitempty"`
 
+	// IANA timezone the organizer picked the event's days / times in (e.g. "America/New_York")
+	Timezone *string `json:"timezone" bson:"timezone,omitempty"`
+
 	// Availability responses - old format for backward compatibility (fetched from eventResponses collection)
 	ResponsesMap map[string]*Response `json:"responses" bson:"-"`
 
