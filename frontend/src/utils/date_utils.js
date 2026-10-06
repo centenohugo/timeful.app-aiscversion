@@ -15,13 +15,13 @@ dayjs.extend(timezonePlugin)
   Date utils 
 */
 
-/** Returns a string representation of the given date, i.e. May 14th is "5/14" */
+/** Returns a string representation of the given date, i.e. May 14th is "14/5" */
 export const getDateString = (date, utc = false) => {
   date = new Date(date)
   if (utc) {
-    return `${date.getUTCMonth() + 1}/${date.getUTCDate()}`
+    return `${date.getUTCDate()}/${date.getUTCMonth() + 1}`
   }
-  return `${date.getMonth() + 1}/${date.getDate()}`
+  return `${date.getDate()}/${date.getMonth() + 1}`
 }
 
 /** Returns a string in the format "Mon, 9/23, 10 AM - 12 PM PDT" given a start date and end date */
@@ -55,7 +55,7 @@ export const getISODateString = (date, utc = false) => {
   return `${year}-${month}-${day}`
 }
 
-/** Returns a string representing date range from date1 to date2, i.e. "5/14 - 5/27" */
+/** Returns a string representing date range from date1 to date2, i.e. "14/5 - 27/5" */
 export const getDateRangeString = (date1, date2, utc = false) => {
   date1 = new Date(date1)
   date2 = new Date(date2)
