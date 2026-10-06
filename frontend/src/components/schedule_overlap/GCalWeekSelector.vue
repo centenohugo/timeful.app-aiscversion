@@ -45,7 +45,7 @@ export default {
         date.setDate(date.getDate() + 1)
       }
 
-      return dayjs(date).format("M/D")
+      return dayjs(date).format("D/M")
     },
   },
 
