@@ -15,7 +15,7 @@
         <div
           class="tw-flex tw-size-10 tw-shrink-0 tw-items-center tw-justify-center"
         >
-          <v-icon :color="isOwner ? 'green' : 'grey'">{{
+          <v-icon :color="isOwner ? 'primary' : 'grey'">{{
             isGroup
               ? "mdi-account-group"
               : isDow
