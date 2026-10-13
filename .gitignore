@@ -11,3 +11,4 @@ deploy_scripts/reboot_log.txt
 .gstack/
 
 package-lock.json
+/.worktree

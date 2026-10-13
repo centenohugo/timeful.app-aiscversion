@@ -60,13 +60,51 @@ func DeleteExpiredEvents(now time.Time, retention time.Duration) (int, error) {
 			expiredIds = append(expiredIds, event.Id)
 		}
 	}
-	if len(expiredIds) == 0 {
+
+	return deleteEventsWithRelatedData(expiredIds)
+}
+
+// DeleteStaleUndatedEvents permanently deletes every day of week event and
+// availability group created more than retention ago, along with its responses,
+// attendees and folder associations. These events have no last date to expire on,
+// so their age is measured from the creation time embedded in their ObjectID.
+// Returns the number of events deleted.
+func DeleteStaleUndatedEvents(now time.Time, retention time.Duration) (int, error) {
+	ctx := context.Background()
+	cutoffId := primitive.NewObjectIDFromTimestamp(now.Add(-retention))
+
+	candidates, err := EventsCollection.Find(ctx, bson.M{
+		"type": bson.M{"$in": bson.A{models.DOW, models.GROUP}},
+		"_id":  bson.M{"$lt": cutoffId},
+	}, options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return 0, err
+	}
+
+	var events []models.Event
+	if err := candidates.All(ctx, &events); err != nil {
+		return 0, err
+	}
+
+	staleIds := make([]primitive.ObjectID, 0, len(events))
+	for _, event := range events {
+		staleIds = append(staleIds, event.Id)
+	}
+
+	return deleteEventsWithRelatedData(staleIds)
+}
+
+// Permanently deletes the given events along with their responses, attendees and
+// folder associations. Returns the number of events deleted.
+func deleteEventsWithRelatedData(eventIds []primitive.ObjectID) (int, error) {
+	ctx := context.Background()
+	if len(eventIds) == 0 {
 		return 0, nil
 	}
 
 	// Delete everything that hangs off the event first — an event left behind gets
 	// picked up by the next run, whereas orphaned responses never would be
-	idFilter := bson.M{"eventId": bson.M{"$in": expiredIds}}
+	idFilter := bson.M{"eventId": bson.M{"$in": eventIds}}
 	for _, collection := range []*mongo.Collection{
 		EventResponsesCollection,
 		AttendeesCollection,
@@ -77,7 +115,7 @@ func DeleteExpiredEvents(now time.Time, retention time.Duration) (int, error) {
 		}
 	}
 
-	result, err := EventsCollection.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": expiredIds}})
+	result, err := EventsCollection.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": eventIds}})
 	if err != nil {
 		return 0, err
 	}

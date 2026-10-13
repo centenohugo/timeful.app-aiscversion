@@ -9,6 +9,7 @@ export const errors = Object.freeze({
   UserDoesNotExist: "user-does-not-exist",
   EventNotFound: "event-not-found",
   InvalidCredentials: "invalid-credentials",
+  ActiveEventLimit: "active-event-limit-reached",
 })
 
 // Auth types

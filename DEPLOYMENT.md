@@ -123,7 +123,8 @@ Create `server/.env` from the template (`server/.env.template`).
 
 | Variable                | Description                                                                                                                                              |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EVENT_RETENTION_DAYS`  | Days to keep an event after its last possible meeting date (default: 30). The server sweeps daily and permanently deletes expired events with their responses, attendees, and folder associations. Day-of-week events and availability groups are never deleted. Set to `0` to disable. |
+| `EVENT_RETENTION_DAYS`  | Days to keep an event after its last possible meeting date (default: 30). The server sweeps daily and permanently deletes expired events with their responses, attendees, and folder associations. Day-of-week events and availability groups are handled by `UNDATED_EVENT_RETENTION_DAYS` instead. Set to `0` to disable. |
+| `UNDATED_EVENT_RETENTION_DAYS` | Days to keep a day-of-week event or availability group after its creation (default: 90). These have no last meeting date, so the daily sweep permanently deletes them, with their responses, attendees, and folder associations, once they're this old. Set to `0` to disable. |
 
 #### Optional — Other Services
 

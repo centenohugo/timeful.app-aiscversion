@@ -106,6 +106,10 @@ func createEvent(c *gin.Context) {
 	user := utils.GetAuthUser(c)
 	ownerId := user.Id
 
+	if rejectIfActiveEventLimitReached(c, ownerId) {
+		return
+	}
+
 	// Construct event object
 	numResponses := 0
 	event := models.Event{
@@ -163,6 +167,20 @@ func createEvent(c *gin.Context) {
 	db.UsersCollection.UpdateOne(context.Background(), bson.M{"_id": ownerId}, bson.M{"$inc": bson.M{"numEventsCreated": 1}})
 
 	c.JSON(http.StatusCreated, gin.H{"eventId": insertedId, "shortId": event.ShortId})
+}
+
+// Writes a 403 and returns true if the user already owns the maximum number of active
+// (not deleted, not archived) events, so they can't own another one
+func rejectIfActiveEventLimitReached(c *gin.Context, ownerId primitive.ObjectID) bool {
+	if !db.HasReachedActiveEventLimit(ownerId) {
+		return false
+	}
+
+	c.JSON(http.StatusForbidden, gin.H{
+		"error": errs.ActiveEventLimit,
+		"limit": db.MaxActiveEventsPerUser,
+	})
+	return true
 }
 
 // Returns the given timezone if it's a valid IANA timezone name, nil otherwise
@@ -1130,6 +1148,10 @@ func duplicateEvent(c *gin.Context) {
 		return
 	}
 
+	if rejectIfActiveEventLimitReached(c, user.Id) {
+		return
+	}
+
 	// Update event
 	event.Id = primitive.NewObjectID()
 	event.Name = payload.EventName
@@ -1193,6 +1215,15 @@ func archiveEvent(c *gin.Context) {
 
 	userInterface, _ := c.Get("authUser")
 	user := userInterface.(*models.User)
+
+	// Unarchiving makes the event active again, so it counts against the limit
+	if !*payload.Archive {
+		event := db.GetEventById(eventId)
+		if event != nil && event.OwnerId == user.Id && event.IsArchived != nil && *event.IsArchived &&
+			rejectIfActiveEventLimitReached(c, user.Id) {
+			return
+		}
+	}
 
 	result := db.EventsCollection.FindOneAndUpdate(context.Background(), bson.M{
 		"_id":     objectId,
@@ -1351,6 +1382,10 @@ func importEvent(c *gin.Context) {
 
 	userInterface, _ := c.Get("authUser")
 	user := userInterface.(*models.User)
+
+	if rejectIfActiveEventLimitReached(c, user.Id) {
+		return
+	}
 
 	// Parse the URL to extract base URL and event ID
 	parsed, err := url.Parse(payload.URL)
