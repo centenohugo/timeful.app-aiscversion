@@ -2,9 +2,19 @@
   General utils
 */
 
-import { eventTypes, guestUserId } from "@/constants"
+import { eventTypes, guestUserId, errors } from "@/constants"
 import { dateToDowDate, dateToTimeNum } from "./date_utils"
 import Color from "color"
+
+/**
+ * Returns a user-facing message if the given fetch error was caused by the user
+ * owning too many active events, otherwise returns null
+ */
+export const getActiveEventLimitErrorMessage = (err) => {
+  if (err?.parsed?.error !== errors.ActiveEventLimit) return null
+  const limit = err.parsed.limit ?? 10
+  return `You can't have more than ${limit} active events. Archive or delete one of your events to create a new one.`
+}
 
 var timeoutId
 /** Calls callback() on long press */

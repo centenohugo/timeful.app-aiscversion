@@ -194,3 +194,27 @@ func ProxyNameCollidesWithUser(name string) bool {
 
 	return GetUserById(objectId.Hex()) != nil
 }
+
+// Maximum number of active (not deleted, not archived) events a single user can own
+const MaxActiveEventsPerUser = 10
+
+// Returns the number of active (not deleted, not archived) events owned by the given user
+func CountActiveEventsOwnedBy(ownerId primitive.ObjectID) int64 {
+	count, err := EventsCollection.CountDocuments(context.Background(), bson.M{
+		"$and": bson.A{
+			bson.M{"ownerId": ownerId},
+			bson.M{"isDeleted": bson.M{"$ne": true}},
+			bson.M{"isArchived": bson.M{"$ne": true}},
+		},
+	})
+	if err != nil {
+		logger.StdErr.Panicln(err)
+	}
+
+	return count
+}
+
+// Returns whether the given user already owns the maximum number of active events
+func HasReachedActiveEventLimit(ownerId primitive.ObjectID) bool {
+	return CountActiveEventsOwnedBy(ownerId) >= MaxActiveEventsPerUser
+}

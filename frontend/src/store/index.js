@@ -1,6 +1,6 @@
 import Vue from "vue"
 import Vuex from "vuex"
-import { get } from "@/utils"
+import { get, getActiveEventLimitErrorMessage } from "@/utils"
 import {
   createFolder,
   deleteFolder,
@@ -159,7 +159,11 @@ export default new Vuex.Store({
           event.isArchived = archive
         }
       } catch (err) {
-        dispatch("showError", "There was a problem archiving the event!")
+        dispatch(
+          "showError",
+          getActiveEventLimitErrorMessage(err) ??
+            "There was a problem archiving the event!"
+        )
         console.error(err)
       }
     },

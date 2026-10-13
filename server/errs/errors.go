@@ -21,6 +21,7 @@ const (
 	InvalidProxyName      string = "invalid-proxy-name"
 	ProxyNotAllowed       string = "proxy-not-allowed"
 	InvalidScheduler      string = "invalid-scheduler"
+	ActiveEventLimit      string = "active-event-limit-reached"
 
 	NoGoogleCalendarAccount         string = "no-google-calendar-account"
 	CalendarWritePermissionRequired string = "calendar-write-permission-required"

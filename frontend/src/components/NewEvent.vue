@@ -265,6 +265,7 @@ import {
   userPrefers12h,
   addEventToCreatedList,
   prefersStartOnMonday,
+  getActiveEventLimitErrorMessage,
 } from "@/utils"
 import { mapActions, mapState } from "vuex"
 import TimezoneSelector from "./schedule_overlap/TimezoneSelector.vue"
@@ -576,7 +577,8 @@ export default {
           })
           .catch((err) => {
             this.showError(
-              "There was a problem creating that event! Please try again later."
+              getActiveEventLimitErrorMessage(err) ??
+                "There was a problem creating that event! Please try again later."
             )
             console.error(err)
           })

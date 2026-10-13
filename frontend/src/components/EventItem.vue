@@ -207,7 +207,13 @@
 </template>
 
 <script>
-import { getDateRangeStringForEvent, _delete, isPhone, post } from "@/utils"
+import {
+  getDateRangeStringForEvent,
+  _delete,
+  isPhone,
+  post,
+  getActiveEventLimitErrorMessage,
+} from "@/utils"
 import { mapActions, mapState } from "vuex"
 import { eventTypes } from "@/constants"
 
@@ -318,7 +324,8 @@ export default {
         })
         .catch((err) => {
           this.showError(
-            "There was a problem duplicating that event! Please try again later."
+            getActiveEventLimitErrorMessage(err) ??
+              "There was a problem duplicating that event! Please try again later."
           )
         })
         .finally(() => {
