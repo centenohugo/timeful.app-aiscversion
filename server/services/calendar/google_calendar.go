@@ -1,11 +1,11 @@
 package calendar
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -162,79 +162,24 @@ func (calendar *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin tim
 	return calendarEvents, nil
 }
 
-// CreatedCalendarEvent holds the pieces of a newly-created Google Calendar event that callers
-// care about: its id and a link to view it in Google Calendar.
-type CreatedCalendarEvent struct {
-	Id       string `json:"id"`
-	HtmlLink string `json:"htmlLink"`
-}
+// BuildGoogleCalendarDraftURL returns a Google Calendar link that opens a pre-filled, unsaved
+// event (title, time, description, guests and a Google Meet link). Nothing is created until the
+// user clicks "Save" in Google Calendar, which is also when the guests get their invites.
+func BuildGoogleCalendarDraftURL(summary string, description string, start time.Time, end time.Time, timezone string, attendeeEmails []string) string {
+	const dateFormat = "20060102T150405Z"
 
-// CreateCalendarEvent creates an event on the user's primary Google Calendar and invites the given
-// attendees (sending them an email invite via sendUpdates=all). No conference link is attached.
-// Requires an access token granted with the calendar.events (write) scope.
-func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description string, start time.Time, end time.Time, timezone string, attendeeEmails []string) (*CreatedCalendarEvent, error) {
-	// A blank access token means the stored credentials were never refreshed successfully (the
-	// refresh token is expired or revoked). Fail with the same shape Google would return for a
-	// rejected token so callers route the user through re-consent instead of reporting a generic
-	// failure.
-	if len(calendar.AccessToken) == 0 {
-		return nil, &errs.GoogleAPIError{
-			Code:    http.StatusUnauthorized,
-			Message: "no valid Google access token for this account; the user must reconnect their Google Calendar",
-			Status:  "UNAUTHENTICATED",
-		}
+	params := url.Values{}
+	params.Set("action", "TEMPLATE")
+	params.Set("text", summary)
+	params.Set("details", description)
+	params.Set("dates", start.UTC().Format(dateFormat)+"/"+end.UTC().Format(dateFormat))
+	if timezone != "" {
+		params.Set("ctz", timezone)
 	}
+	if len(attendeeEmails) > 0 {
+		params.Set("add", strings.Join(attendeeEmails, ","))
+	}
+	params.Set("vcon", "meet")
 
-	attendees := make([]map[string]string, 0, len(attendeeEmails))
-	for _, email := range attendeeEmails {
-		attendees = append(attendees, map[string]string{"email": email})
-	}
-
-	body := map[string]interface{}{
-		"summary":     summary,
-		"description": description,
-		"start": map[string]string{
-			"dateTime": start.Format(time.RFC3339),
-			"timeZone": timezone,
-		},
-		"end": map[string]string{
-			"dateTime": end.Format(time.RFC3339),
-			"timeZone": timezone,
-		},
-		"attendees": attendees,
-	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-
-	req, _ := http.NewRequest(
-		"POST",
-		"https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all",
-		bytes.NewReader(bodyBytes),
-	)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendar.AccessToken))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	type Response struct {
-		Id       string               `json:"id"`
-		HtmlLink string               `json:"htmlLink"`
-		Error    *errs.GoogleAPIError `json:"error"`
-	}
-
-	var res Response
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return nil, err
-	}
-
-	if res.Error != nil {
-		return nil, res.Error
-	}
-
-	return &CreatedCalendarEvent{Id: res.Id, HtmlLink: res.HtmlLink}, nil
+	return "https://calendar.google.com/calendar/render?" + params.Encode()
 }

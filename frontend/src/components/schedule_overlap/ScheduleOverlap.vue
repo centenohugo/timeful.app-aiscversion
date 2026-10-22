@@ -1068,13 +1068,11 @@ import {
   timeNumToTimeString,
   prefersStartOnMonday,
   canScheduleEvent,
-  signInGoogle,
   getAutoScrollDelta,
   exceedsColumnLockThreshold,
   formatSlotRangeLabel,
 } from "@/utils"
 import {
-  authTypes,
   availabilityTypes,
   calendarOptionsDefaults,
   eventTypes,
@@ -3700,10 +3698,10 @@ export default {
       const eventId = this.event.shortId ?? this.event._id
 
       if (googleCalendar) {
-        // Create the Google Calendar event server-side so that everyone who responded —
-        // regardless of which slot they voted for — actually gets invited. A client-side deep
-        // link can't reliably do this: Google Calendar's "add guests" URL parameter is no longer
-        // honored by the current Calendar UI.
+        // Ask the backend for a pre-filled Google Calendar draft (title, time, a Meet link, and
+        // everyone who responded as a guest — regardless of which slot they voted for). Guest
+        // emails aren't always visible to the client, which is why the link is built server-side.
+        // Nothing is created until the scheduler clicks "Save" in Google Calendar.
         this.schedulingEvent = true
         // Open the tab synchronously, in the same tick as the click, so popup blockers still
         // treat it as user-initiated — an await before window.open() would otherwise block it.
@@ -3714,39 +3712,14 @@ export default {
             endDate: endDate.toISOString(),
             timezone: this.curTimezone.value,
           })
-          // Open the newly created event in Google Calendar so the scheduler can review it.
-          if (newTab) newTab.location.href = result.htmlLink
-          else window.open(result.htmlLink, "_blank")
+          if (newTab) newTab.location.href = result.url
+          else window.open(result.url, "_blank")
           this.state = this.defaultState
         } catch (err) {
           if (newTab) newTab.close()
-          const code = err.parsed?.error
-          if (
-            code === "calendar-write-permission-required" ||
-            code === "no-google-calendar-account"
-          ) {
-            this.showError(
-              "Reconnect your Google Calendar to let Meet AISC create the event and invite everyone."
-            )
-            signInGoogle({
-              state: {
-                type: authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT,
-                eventId,
-              },
-              requestCalendarPermission: true,
-              selectAccount: false,
-              loginHint: this.authUser?.email,
-            })
-          } else {
-            // The backend forwards Google's own complaint (bad timezone, rejected attendee,
-            // Calendar API not enabled) when it has one — it's the only actionable detail.
-            const detail = err.parsed?.message
-            this.showError(
-              detail
-                ? `Failed to schedule the event on Google Calendar: ${detail}`
-                : "Failed to schedule the event on Google Calendar. Please try again."
-            )
-          }
+          this.showError(
+            "Failed to open the event in Google Calendar. Please try again."
+          )
         } finally {
           this.schedulingEvent = false
         }
