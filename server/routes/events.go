@@ -22,7 +22,6 @@ import (
 	"schej.it/server/middleware"
 	"schej.it/server/models"
 	"schej.it/server/responses"
-	"schej.it/server/services/auth"
 	"schej.it/server/services/calendar"
 	"schej.it/server/utils"
 )
@@ -1629,18 +1628,16 @@ func getEventAttendeeEmails(event *models.Event) []string {
 	return emails
 }
 
-// @Summary Creates a Google Calendar event for the given time and invites everyone who responded
-// @Description Only the event owner or a delegated scheduler may do this. Requires the caller's primary Google account to have granted calendar write access.
+// @Summary Returns a Google Calendar draft link for the given time that invites everyone who responded
+// @Description Only the event owner or a delegated scheduler may do this. The link opens an unsaved event (with a Google Meet link) in Google Calendar; nothing is created until the user saves it there.
 // @Tags events
 // @Accept json
 // @Produce json
 // @Param eventId path string true "Event ID"
 // @Param payload body object{startDate=string,endDate=string,timezone=string} true "Object containing the start/end time (RFC3339) and IANA timezone to schedule the event for"
-// @Success 200 {object} object{htmlLink=string}
-// @Failure 400 {object} responses.Error "Object containing the error that occurred"
+// @Success 200 {object} object{url=string}
 // @Failure 403 {object} responses.Error "Object containing the error that occurred"
 // @Failure 404 {object} responses.Error "Object containing the error that occurred"
-// @Failure 502 {object} responses.Error "Object containing the error that occurred"
 // @Router /events/{eventId}/schedule [post]
 func scheduleEvent(c *gin.Context) {
 	payload := struct {
@@ -1665,41 +1662,13 @@ func scheduleEvent(c *gin.Context) {
 		return
 	}
 
-	primaryAccountKey := utils.GetPrimaryAccountKey(user)
-	account, ok := user.CalendarAccounts[primaryAccountKey]
-	if !ok || account.CalendarType != models.GoogleCalendarType || account.OAuth2CalendarAuth == nil {
-		c.JSON(http.StatusBadRequest, responses.Error{Error: errs.NoGoogleCalendarAccount})
-		return
-	}
-	if !utils.HasCalendarWriteScope(account.OAuth2CalendarAuth.Scope) {
-		c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
-		return
-	}
-
-	accountsToRefresh := make(models.Set[string])
-	accountsToRefresh[primaryAccountKey] = struct{}{}
-	auth.RefreshUserTokenIfNecessary(user, accountsToRefresh)
-	account = user.CalendarAccounts[primaryAccountKey]
-
-	// A still-expired (or empty) access token means the refresh was rejected — typically because
-	// the refresh token expired, which Google does after 7 days while the OAuth client's
-	// publishing status is "Testing". Only re-consent fixes that, so tell the client to ask for
-	// it rather than letting the Calendar call fail with an opaque error.
-	if account.OAuth2CalendarAuth == nil ||
-		len(account.OAuth2CalendarAuth.AccessToken) == 0 ||
-		time.Now().After(account.OAuth2CalendarAuth.AccessTokenExpireDate.Time()) {
-		c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
-		return
-	}
-
 	eventIdString := event.Id.Hex()
 	if event.ShortId != nil {
 		eventIdString = *event.ShortId
 	}
 	description := fmt.Sprintf("This event was scheduled with Meet AISC: %s/e/%s", utils.GetOrigin(c), eventIdString)
 
-	googleCalendar := calendar.GoogleCalendar{OAuth2CalendarAuth: *account.OAuth2CalendarAuth}
-	createdEvent, err := googleCalendar.CreateCalendarEvent(
+	draftUrl := calendar.BuildGoogleCalendarDraftURL(
 		event.Name,
 		description,
 		payload.StartDate,
@@ -1707,34 +1676,8 @@ func scheduleEvent(c *gin.Context) {
 		payload.Timezone,
 		getEventAttendeeEmails(event),
 	)
-	if err != nil {
-		logger.StdErr.Println(err)
 
-		if googleErr, ok := err.(*errs.GoogleAPIError); ok {
-			// Google rejected the token itself (expired, revoked, or missing the write scope
-			// despite what we have on file). Re-consent is the only fix, so surface the error the
-			// client already knows how to recover from.
-			if googleErr.Code == http.StatusUnauthorized || googleErr.Code == http.StatusForbidden {
-				c.JSON(http.StatusForbidden, responses.Error{Error: errs.CalendarWritePermissionRequired})
-				return
-			}
-
-			// Anything else (a bad timezone, a rejected attendee, a Calendar API that isn't
-			// enabled for the project) is actionable only if we say what Google complained about.
-			c.JSON(http.StatusBadGateway, gin.H{
-				"error":   errs.FailedToCreateCalendarEvent,
-				"message": googleErr.Message,
-			})
-			return
-		}
-
-		c.JSON(http.StatusBadGateway, responses.Error{Error: errs.FailedToCreateCalendarEvent})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"htmlLink": createdEvent.HtmlLink,
-	})
+	c.JSON(http.StatusOK, gin.H{"url": draftUrl})
 }
 
 // shouldKeepGroupResponseUserEmails is true for signed-in group owners and invitees
