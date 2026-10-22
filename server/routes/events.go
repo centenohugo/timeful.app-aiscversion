@@ -1636,7 +1636,7 @@ func getEventAttendeeEmails(event *models.Event) []string {
 // @Produce json
 // @Param eventId path string true "Event ID"
 // @Param payload body object{startDate=string,endDate=string,timezone=string} true "Object containing the start/end time (RFC3339) and IANA timezone to schedule the event for"
-// @Success 200 {object} object{htmlLink=string,hangoutLink=string}
+// @Success 200 {object} object{htmlLink=string}
 // @Failure 400 {object} responses.Error "Object containing the error that occurred"
 // @Failure 403 {object} responses.Error "Object containing the error that occurred"
 // @Failure 404 {object} responses.Error "Object containing the error that occurred"
@@ -1733,8 +1733,7 @@ func scheduleEvent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"htmlLink":    createdEvent.HtmlLink,
-		"hangoutLink": createdEvent.HangoutLink,
+		"htmlLink": createdEvent.HtmlLink,
 	})
 }
 

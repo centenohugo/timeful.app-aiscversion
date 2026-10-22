@@ -3700,7 +3700,7 @@ export default {
       const eventId = this.event.shortId ?? this.event._id
 
       if (googleCalendar) {
-        // Create the event (and Google Meet link) server-side so that everyone who responded —
+        // Create the Google Calendar event server-side so that everyone who responded —
         // regardless of which slot they voted for — actually gets invited. A client-side deep
         // link can't reliably do this: Google Calendar's "add guests" URL parameter is no longer
         // honored by the current Calendar UI.
@@ -3714,9 +3714,9 @@ export default {
             endDate: endDate.toISOString(),
             timezone: this.curTimezone.value,
           })
-          const link = result.hangoutLink || result.htmlLink
-          if (newTab) newTab.location.href = link
-          else window.open(link, "_blank")
+          // Open the newly created event in Google Calendar so the scheduler can review it.
+          if (newTab) newTab.location.href = result.htmlLink
+          else window.open(result.htmlLink, "_blank")
           this.state = this.defaultState
         } catch (err) {
           if (newTab) newTab.close()
