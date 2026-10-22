@@ -46,7 +46,7 @@ export default {
     backgroundColor() {
       const capacity = this.signUpBlock ? this.signUpBlock.capacity : 1
       const frac = this.numberResponses / capacity
-      const green = "#00994C"
+      const pink = "#EB178E"
       let alpha = Math.floor(frac * (255 - 30))
         .toString(16)
         .toUpperCase()
@@ -55,7 +55,7 @@ export default {
       if (frac == 1) {
         alpha = "FF"
       }
-      return `${green}${alpha}`
+      return `${pink}${alpha}`
     },
     fontColor() {
       return this.numberResponses == this.signUpBlock?.capacity && !this.unsaved
