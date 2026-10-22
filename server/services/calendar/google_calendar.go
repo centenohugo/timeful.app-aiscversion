@@ -163,16 +163,15 @@ func (calendar *GoogleCalendar) GetCalendarEvents(calendarId string, timeMin tim
 }
 
 // CreatedCalendarEvent holds the pieces of a newly-created Google Calendar event that callers
-// care about: a link to view it, and the auto-generated Google Meet link (if any).
+// care about: its id and a link to view it in Google Calendar.
 type CreatedCalendarEvent struct {
-	Id          string `json:"id"`
-	HtmlLink    string `json:"htmlLink"`
-	HangoutLink string `json:"hangoutLink"`
+	Id       string `json:"id"`
+	HtmlLink string `json:"htmlLink"`
 }
 
-// CreateCalendarEvent creates an event on the user's primary Google Calendar, invites the given
-// attendees (sending them an email invite via sendUpdates=all), and requests a Google Meet
-// conference link. Requires an access token granted with the calendar.events (write) scope.
+// CreateCalendarEvent creates an event on the user's primary Google Calendar and invites the given
+// attendees (sending them an email invite via sendUpdates=all). No conference link is attached.
+// Requires an access token granted with the calendar.events (write) scope.
 func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description string, start time.Time, end time.Time, timezone string, attendeeEmails []string) (*CreatedCalendarEvent, error) {
 	// A blank access token means the stored credentials were never refreshed successfully (the
 	// refresh token is expired or revoked). Fail with the same shape Google would return for a
@@ -203,14 +202,6 @@ func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description s
 			"timeZone": timezone,
 		},
 		"attendees": attendees,
-		"conferenceData": map[string]interface{}{
-			"createRequest": map[string]interface{}{
-				"requestId": primitive.NewObjectID().Hex(),
-				"conferenceSolutionKey": map[string]string{
-					"type": "hangoutsMeet",
-				},
-			},
-		},
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
@@ -219,7 +210,7 @@ func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description s
 
 	req, _ := http.NewRequest(
 		"POST",
-		"https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
+		"https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all",
 		bytes.NewReader(bodyBytes),
 	)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", calendar.AccessToken))
@@ -231,10 +222,9 @@ func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description s
 	defer resp.Body.Close()
 
 	type Response struct {
-		Id          string               `json:"id"`
-		HtmlLink    string               `json:"htmlLink"`
-		HangoutLink string               `json:"hangoutLink"`
-		Error       *errs.GoogleAPIError `json:"error"`
+		Id       string               `json:"id"`
+		HtmlLink string               `json:"htmlLink"`
+		Error    *errs.GoogleAPIError `json:"error"`
 	}
 
 	var res Response
@@ -246,5 +236,5 @@ func (calendar GoogleCalendar) CreateCalendarEvent(summary string, description s
 		return nil, res.Error
 	}
 
-	return &CreatedCalendarEvent{Id: res.Id, HtmlLink: res.HtmlLink, HangoutLink: res.HangoutLink}, nil
+	return &CreatedCalendarEvent{Id: res.Id, HtmlLink: res.HtmlLink}, nil
 }
