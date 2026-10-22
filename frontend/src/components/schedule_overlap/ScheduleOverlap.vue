@@ -443,7 +443,7 @@
                                   class="tw-h-full tw-w-full tw-border-2"
                                   :class="
                                     timeBlock.type === 'available'
-                                      ? 'overlay-avail-shadow-green tw-border-[#00994CB3] tw-bg-[#00994C66]'
+                                      ? 'overlay-avail-shadow-pink tw-border-[#EB178EB3] tw-bg-[#EB178E66]'
                                       : 'overlay-avail-shadow-yellow tw-border-[#997700CC] tw-bg-[#FFE8B8B3]'
                                   "
                                 ></div>
@@ -2177,7 +2177,7 @@ export default {
             if (this.availabilityType === availabilityTypes.IF_NEEDED) {
               return `${gesture} to add your "if needed" ${daysOrTimes} in yellow.`
             }
-            return `${gesture} to add your "available" ${daysOrTimes} in green.`
+            return `${gesture} to add your "available" ${daysOrTimes} in pink.`
           case this.states.SCHEDULE_EVENT:
             return "Tap and drag on the calendar to schedule a Google Calendar event during those times."
           default:
@@ -2193,7 +2193,7 @@ export default {
           if (this.availabilityType === availabilityTypes.IF_NEEDED) {
             return `Click and drag to add your "if needed" ${daysOrTimes} in yellow.`
           }
-          return `Click and drag to add your "available" ${daysOrTimes} in green.`
+          return `Click and drag to add your "available" ${daysOrTimes} in pink.`
         case this.states.SCHEDULE_EVENT:
           return "Click and drag on the calendar to schedule a Google Calendar event during those times."
         default:
@@ -3228,7 +3228,7 @@ export default {
               c += "tw-bg-white "
             } else {
               if (this.availabilityType === availabilityTypes.AVAILABLE) {
-                s.backgroundColor = "#00994C77"
+                s.backgroundColor = "#EB178E77"
               } else if (
                 this.availabilityType === availabilityTypes.IF_NEEDED
               ) {
@@ -3251,7 +3251,7 @@ export default {
             }
           } else {
             if (this.availability.has(date.getTime())) {
-              s.backgroundColor = "#00994C77"
+              s.backgroundColor = "#EB178E77"
             } else if (this.ifNeeded.has(date.getTime())) {
               c += "tw-bg-yellow "
             }
@@ -3266,7 +3266,7 @@ export default {
           if (this.parsedResponses[respondent]?.ifNeeded?.has(date.getTime())) {
             c += "tw-bg-yellow "
           } else {
-            s.backgroundColor = "#00994C77"
+            s.backgroundColor = "#EB178E77"
           }
         } else {
           s.backgroundColor = "#E523230D"
@@ -3318,14 +3318,14 @@ export default {
 
         if (this.defaultState === this.states.BEST_TIMES) {
           if (max > 0 && numRespondents === max) {
-            // Only set timeslot to green for the times that most people are available
+            // Only set timeslot to pink for the times that most people are available
             if (totalRespondents === 1 || this.overlayAvailability) {
               // Make single responses less saturated
-              const green = "#00994C88"
-              s.backgroundColor = green
+              const pink = "#EB178E88"
+              s.backgroundColor = pink
             } else {
-              const green = "#00994C"
-              s.backgroundColor = green
+              const pink = "#EB178E"
+              s.backgroundColor = pink
             }
           }
         } else if (this.defaultState === this.states.HEATMAP) {
@@ -3342,13 +3342,13 @@ export default {
               ) {
                 c += "tw-bg-yellow "
               } else {
-                const green = "#00994C88"
-                s.backgroundColor = green
+                const pink = "#EB178E88"
+                s.backgroundColor = pink
               }
             } else {
               // Determine color of timeslot based on number of people available
               const frac = numRespondents / max
-              const green = "#00994C"
+              const pink = "#EB178E"
               let alpha
               if (!this.overlayAvailability) {
                 alpha = Math.floor(frac * (255 - 30))
@@ -3373,7 +3373,7 @@ export default {
                   .padStart(2, "0")
               }
 
-              s.backgroundColor = green + alpha
+              s.backgroundColor = pink + alpha
             }
           } else if (totalRespondents === 1) {
             const red = "#E523230D"
@@ -3415,8 +3415,8 @@ export default {
         classStyle.style.backgroundColor = "#E523233B"
       }
 
-      // Change edit green
-      // if (classStyle.style.backgroundColor === "#00994C88") {
+      // Change edit pink
+      // if (classStyle.style.backgroundColor === "#EB178E88") {
       //   classStyle.style.backgroundColor = "#29BC6880"
       // }
 
