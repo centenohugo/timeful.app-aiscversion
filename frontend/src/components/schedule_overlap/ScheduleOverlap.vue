@@ -443,7 +443,7 @@
                                   class="tw-h-full tw-w-full tw-border-2"
                                   :class="
                                     timeBlock.type === 'available'
-                                      ? 'overlay-avail-shadow-pink tw-border-[#EB178EB3] tw-bg-[#EB178E66]'
+                                      ? 'overlay-avail-shadow-green tw-border-available/70 tw-bg-available/40'
                                       : 'overlay-avail-shadow-yellow tw-border-[#997700CC] tw-bg-[#FFE8B8B3]'
                                   "
                                 ></div>
@@ -1074,6 +1074,8 @@ import {
 } from "@/utils"
 import {
   availabilityTypes,
+  AVAILABLE_COLOR,
+  AVAILABLE_FILL_COLOR,
   calendarOptionsDefaults,
   eventTypes,
   guestUserId,
@@ -2175,7 +2177,7 @@ export default {
             if (this.availabilityType === availabilityTypes.IF_NEEDED) {
               return `${gesture} to add your "if needed" ${daysOrTimes} in yellow.`
             }
-            return `${gesture} to add your "available" ${daysOrTimes} in pink.`
+            return `${gesture} to add your "available" ${daysOrTimes} in green.`
           case this.states.SCHEDULE_EVENT:
             return "Tap and drag on the calendar to schedule a Google Calendar event during those times."
           default:
@@ -2191,7 +2193,7 @@ export default {
           if (this.availabilityType === availabilityTypes.IF_NEEDED) {
             return `Click and drag to add your "if needed" ${daysOrTimes} in yellow.`
           }
-          return `Click and drag to add your "available" ${daysOrTimes} in pink.`
+          return `Click and drag to add your "available" ${daysOrTimes} in green.`
         case this.states.SCHEDULE_EVENT:
           return "Click and drag on the calendar to schedule a Google Calendar event during those times."
         default:
@@ -3214,8 +3216,8 @@ export default {
           this.state === this.states.EDIT_AVAILABILITY) ||
         this.state === this.states.SET_SPECIFIC_TIMES
       ) {
-        // Set default background color to red (unavailable)
-        s.backgroundColor = "#E523230D"
+        // Unmarked timeslots stay neutral (white) so they can't be confused with
+        // painted ones
 
         // Show only current user availability
         const inDragRange = this.inDragRange(row, col)
@@ -3226,7 +3228,7 @@ export default {
               c += "tw-bg-white "
             } else {
               if (this.availabilityType === availabilityTypes.AVAILABLE) {
-                s.backgroundColor = "#EB178E77"
+                s.backgroundColor = AVAILABLE_FILL_COLOR
               } else if (
                 this.availabilityType === availabilityTypes.IF_NEEDED
               ) {
@@ -3249,7 +3251,7 @@ export default {
             }
           } else {
             if (this.availability.has(date.getTime())) {
-              s.backgroundColor = "#EB178E77"
+              s.backgroundColor = AVAILABLE_FILL_COLOR
             } else if (this.ifNeeded.has(date.getTime())) {
               c += "tw-bg-yellow "
             }
@@ -3264,10 +3266,8 @@ export default {
           if (this.parsedResponses[respondent]?.ifNeeded?.has(date.getTime())) {
             c += "tw-bg-yellow "
           } else {
-            s.backgroundColor = "#EB178E77"
+            s.backgroundColor = AVAILABLE_FILL_COLOR
           }
-        } else {
-          s.backgroundColor = "#E523230D"
         }
         return { class: c, style: s }
       }
@@ -3316,14 +3316,12 @@ export default {
 
         if (this.defaultState === this.states.BEST_TIMES) {
           if (max > 0 && numRespondents === max) {
-            // Only set timeslot to pink for the times that most people are available
+            // Only set timeslot to green for the times that most people are available
             if (totalRespondents === 1 || this.overlayAvailability) {
               // Make single responses less saturated
-              const pink = "#EB178E88"
-              s.backgroundColor = pink
+              s.backgroundColor = AVAILABLE_COLOR + "88"
             } else {
-              const pink = "#EB178E"
-              s.backgroundColor = pink
+              s.backgroundColor = AVAILABLE_COLOR
             }
           }
         } else if (this.defaultState === this.states.HEATMAP) {
@@ -3340,13 +3338,11 @@ export default {
               ) {
                 c += "tw-bg-yellow "
               } else {
-                const pink = "#EB178E88"
-                s.backgroundColor = pink
+                s.backgroundColor = AVAILABLE_COLOR + "88"
               }
             } else {
               // Determine color of timeslot based on number of people available
               const frac = numRespondents / max
-              const pink = "#EB178E"
               let alpha
               if (!this.overlayAvailability) {
                 alpha = Math.floor(frac * (255 - 30))
@@ -3371,7 +3367,7 @@ export default {
                   .padStart(2, "0")
               }
 
-              s.backgroundColor = pink + alpha
+              s.backgroundColor = AVAILABLE_COLOR + alpha
             }
           } else if (totalRespondents === 1) {
             const red = "#E523230D"
@@ -3413,8 +3409,8 @@ export default {
         classStyle.style.backgroundColor = "#E523233B"
       }
 
-      // Change edit pink
-      // if (classStyle.style.backgroundColor === "#EB178E88") {
+      // Change edit green
+      // if (classStyle.style.backgroundColor === "#00994C88") {
       //   classStyle.style.backgroundColor = "#29BC6880"
       // }
 

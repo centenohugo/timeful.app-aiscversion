@@ -3,7 +3,7 @@
     <div class="tw-text-sm tw-font-medium">Legend:</div>
     <div class="tw-flex tw-items-center tw-gap-2">
       <div
-        class="tw-h-4 tw-w-4 tw-rounded tw-border tw-border-gray tw-bg-[#EB178E77]"
+        class="tw-h-4 tw-w-4 tw-rounded tw-border tw-border-gray tw-bg-available/[.47]"
       ></div>
       <span class="tw-text-sm">Available</span>
     </div>
@@ -15,7 +15,7 @@
     </div>
     <div class="tw-flex tw-items-center tw-gap-2">
       <div
-        class="tw-h-4 tw-w-4 tw-rounded tw-border tw-border-gray tw-bg-[#E523232D]"
+        class="tw-h-4 tw-w-4 tw-rounded tw-border tw-border-gray tw-bg-white"
       ></div>
       <span class="tw-text-sm">Unavailable</span>
     </div>
