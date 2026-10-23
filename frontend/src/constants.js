@@ -35,6 +35,11 @@ export const availabilityTypes = Object.freeze({
   IF_NEEDED: "if_needed",
 })
 
+// Semantic "Available" green (keep in sync with `available` in tailwind.config.js)
+export const AVAILABLE_COLOR = "#00994C"
+// Fill used for a single person's available timeslots
+export const AVAILABLE_FILL_COLOR = AVAILABLE_COLOR + "77"
+
 export const timeTypes = Object.freeze({
   HOUR12: "12-hour",
   HOUR24: "24-hour",

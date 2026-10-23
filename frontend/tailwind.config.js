@@ -26,9 +26,9 @@ module.exports = {
      *   blue family   -> AISC cyan   (#20CCF1, SECONDARY) + a darkened,
      *                    text-readable variant used where white text sits on it
      *
-     * `red`, `orange`, `yellow` are SEMANTIC (errors, warnings, "if needed") and
-     * are intentionally left un-branded. The availability heat scale itself is
-     * painted in AISC pink (#EB178E at varying alpha) in ScheduleOverlap.vue.
+     * `available`, `red`, `orange`, `yellow` are SEMANTIC (availability,
+     * errors, warnings, "if needed") and are intentionally left un-branded, so
+     * "available" reads as the universal green instead of the brand pink.
      */
     colors: {
       transparent: "transparent",
@@ -57,6 +57,9 @@ module.exports = {
       // Semantic, NOT branded: encodes how many people are available, so it must
       // stay a distinct, legible light->dark scale independent of the brand pink.
       "avail-green": colors.emerald, // The green used for marking availability
+      // Semantic "Available" color for painting/editing availability (keep in
+      // sync with AVAILABLE_COLOR in src/constants.js, used for inline styles)
+      available: { DEFAULT: "#00994C", dark: "#007A3D" },
       red: "#DB1616",
     },
     screens: {
